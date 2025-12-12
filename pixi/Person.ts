@@ -1,25 +1,28 @@
 import { Application, Container, Graphics, Point, Ticker } from 'pixi.js';
 
+type FinishCallback = () => void;
+
 export class Person extends Container {
   private app: Application;
   private path: Point[];
-  private segmentIndex = 0;   // index du point de départ du segment
-  private segmentProgress = 0; // 0 → début du segment, 1 → fin
-  private speed = 60;         // px / seconde
+  private segmentIndex = 0;
+  private segmentProgress = 0;
+  private speed = 60; // px/s
   private paused = false;
+  private onFinished: FinishCallback | null = null;
 
-  constructor(app: Application, path: Point[]) {
+  constructor(app: Application, path: Point[], onFinished?: FinishCallback) {
     super();
     this.app = app;
-    this.path = path;
+    this.path = this.normalizePath(path);
+    this.onFinished = onFinished || null;
 
     const g = new Graphics();
     g.circle(0, 0, 6).fill(0xf9a8d4).stroke({ width: 2, color: 0x1f2933 });
     this.addChild(g);
-    this.zIndex = 1000;
 
-    if (path.length > 0) {
-      this.position.copyFrom(path[0]);
+    if (this.path.length > 0) {
+      this.position.copyFrom(this.path[0]);
     }
 
     this.app.ticker.add(this.update, this);
@@ -27,6 +30,56 @@ export class Person extends Container {
 
   public setPaused(paused: boolean) {
     this.paused = paused;
+  }
+
+  /**
+   * Définit un nouveau chemin complet à suivre (peut contenir des diagonales en entrée,
+   * elles seront converties en segments horizontaux/verticaux).
+   */
+  public setPath(points: Point[], onFinished?: FinishCallback) {
+    if (points.length < 2) return;
+    this.path = this.normalizePath(points);
+    this.segmentIndex = 0;
+    this.segmentProgress = 0;
+    if (onFinished) {
+      this.onFinished = onFinished;
+    }
+  }
+
+  /**
+   * Helper simple pour aller de la position actuelle à une cible.
+   */
+  public setPathFromCurrent(target: Point, onFinished?: FinishCallback) {
+    this.setPath([this.position.clone(), target], onFinished);
+  }
+
+  /**
+   * Transforme un chemin potentiellement diagonal en chemin Manhattan :
+   * chaque saut diagonal est remplacé par 2 segments orthogonaux.
+   */
+  private normalizePath(points: Point[]): Point[] {
+    if (points.length <= 1) return points;
+
+    const result: Point[] = [];
+    result.push(points[0].clone());
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = result[result.length - 1];
+      const cur = points[i];
+
+      const dx = cur.x - prev.x;
+      const dy = cur.y - prev.y;
+
+      if (dx !== 0 && dy !== 0) {
+        // On force un "L" : horizontal puis vertical (ou inverse)
+        const mid = new Point(cur.x, prev.y);
+        result.push(mid, cur.clone());
+      } else {
+        result.push(cur.clone());
+      }
+    }
+
+    return result;
   }
 
   private update(ticker: Ticker) {
@@ -47,11 +100,8 @@ export class Person extends Container {
       return;
     }
 
-    // progression sur le segment courant
     const moveT = (this.speed * dt) / dist;
     this.segmentProgress += moveT;
-
-    // clamp dans [0, 1] pour éviter tout overshoot / “tilt”
     if (this.segmentProgress >= 1) {
       this.segmentProgress = 1;
     }
@@ -59,7 +109,6 @@ export class Person extends Container {
     const t = this.segmentProgress;
     this.position.set(from.x + dx * t, from.y + dy * t);
 
-    // si on est au bout du segment, on passe au suivant
     if (this.segmentProgress >= 1) {
       this.advanceSegment();
     }
@@ -70,17 +119,19 @@ export class Person extends Container {
     this.segmentProgress = 0;
 
     if (this.segmentIndex >= this.path.length - 1) {
-      // arrivé au bout du chemin
       this.finish();
     } else {
-      // on se snap exactement sur le prochain point pour éviter les décalages flottants
       this.position.copyFrom(this.path[this.segmentIndex]);
     }
   }
 
   private finish() {
     this.app.ticker.remove(this.update, this);
-    this.destroy();
+    if (this.onFinished) {
+      this.onFinished();
+    } else {
+      this.destroy();
+    }
   }
 
   public destroy(options?: any) {

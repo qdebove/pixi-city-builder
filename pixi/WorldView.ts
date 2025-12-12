@@ -1,4 +1,10 @@
-import { Application, Container, FederatedPointerEvent, Graphics, Point } from 'pixi.js';
+import {
+  Application,
+  Container,
+  FederatedPointerEvent,
+  Graphics,
+  Point,
+} from 'pixi.js';
 import { CELL_SIZE, GRID_SIZE } from '../types/types';
 
 export class WorldView {
@@ -14,7 +20,7 @@ export class WorldView {
   constructor(app: Application) {
     this.app = app;
     this.world = new Container();
-    this.world.sortableChildren = true; // permet d'utiliser zIndex
+    this.world.sortableChildren = true;
     this.app.stage.addChild(this.world);
 
     this.drawGrid();
@@ -47,7 +53,9 @@ export class WorldView {
   }
 
   private setupControls() {
-    this.app.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.app.canvas.addEventListener('contextmenu', (e) =>
+      e.preventDefault()
+    );
 
     this.app.stage.eventMode = 'static';
     this.app.stage.hitArea = this.app.screen;
@@ -59,13 +67,16 @@ export class WorldView {
     this.app.canvas.addEventListener('wheel', this.onWheel.bind(this), {
       passive: false,
     });
+
+    // ✅ curseur toujours en croix
+    this.app.canvas.style.cursor = 'crosshair';
   }
 
   private onPointerDown(e: FederatedPointerEvent) {
     if (e.button === 2) {
       this.panStart = e.global.clone();
       this.worldStart = new Point(this.world.x, this.world.y);
-      this.app.canvas.style.cursor = 'move';
+      // on ne change plus le curseur
     }
   }
 
@@ -82,7 +93,7 @@ export class WorldView {
     if (e.button === 2) {
       this.panStart = null;
       this.worldStart = null;
-      this.app.canvas.style.cursor = 'crosshair';
+      // rien : le curseur reste en croix
     }
   }
 

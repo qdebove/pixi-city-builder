@@ -27,14 +27,13 @@ export class Building extends Container {
       typeId: type.id,
       level: 1,
       currentHealth: type.baseHealth,
-      currentOccupants: 1,
-      isAutoClickerUnlocked: false,
-      isAutoClickerActive: false,
-      autoClickerInterval: 2000,
-      autoClickerLevel: 0,
+      currentOccupants: 0,
+      isAutoClickerUnlocked: true,
+      isAutoClickerActive: true,
+      autoClickerInterval: type.baseIntervalMs || 2000, // ✅ propre à chaque type
+      autoClickerLevel: 1,
     };
 
-    // centre exact de la cellule
     this.position.set(
       gx * CELL_SIZE + CELL_SIZE / 2,
       gy * CELL_SIZE + CELL_SIZE / 2
@@ -69,7 +68,6 @@ export class Building extends Container {
       .fill(this.type.color)
       .stroke({ width: 2, color: 0xffffff });
 
-    // routes : pas d'indicateurs de niveau
     if (this.type.isRoad) return;
 
     const dotsStart = offset + 6;
@@ -97,7 +95,14 @@ export class Building extends Container {
   }
 
   public getIncome(): number {
-    return calculateIncome(this.type, this.state.level);
+    const base = calculateIncome(this.type, this.state.level);
+    if (this.type.capacity <= 0) return base;
+
+    const ratio = Math.min(
+      1,
+      this.state.currentOccupants / this.type.capacity
+    );
+    return Math.floor(base * (1 + ratio));
   }
 
   public getCenterGlobalPosition(): Point {
@@ -105,19 +110,11 @@ export class Building extends Container {
   }
 
   public pulse() {
-    this.scale.set(1.15);
+    // plus de rebond pour la production passive
   }
 
   private updateAnim(ticker: Ticker) {
-    if (this.scale.x > 1) {
-      const speed = 0.15 * ticker.deltaTime;
-      const newScale = this.scale.x - speed;
-      if (newScale <= 1) {
-        this.scale.set(1);
-      } else {
-        this.scale.set(newScale);
-      }
-    }
+    // laissé vide pour de futures animations éventuelles
   }
 
   public destroy(options?: any) {

@@ -16,6 +16,8 @@ export interface GameUIState {
   totalClicks: number;
   selectedBuildingState: BuildingState | null;
   isPaused: boolean;
+  movingPeopleCount: number;
+  occupantsByType: Record<string, number>;
 }
 
 export class Game {
@@ -29,6 +31,8 @@ export class Game {
   private selectedBuilding: Building | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
+
+  private lastStatsUpdate = 0;
 
   private onStateChange: (state: GameUIState) => void;
 
@@ -50,6 +54,9 @@ export class Game {
     });
     container.appendChild(this.app.canvas);
 
+    // ✅ Forcer le curseur en croix sur le canvas lui-même
+    this.app.canvas.style.cursor = 'crosshair';
+
     this.worldView = new WorldView(this.app);
     this.buildingManager = new BuildingManager(this.app, this.worldView.world);
     this.peopleManager = new PeopleManager(
@@ -68,19 +75,23 @@ export class Game {
     const now = performance.now();
     if (this.isPaused) return;
 
-    // auto-clickers
+    // Production passive
     this.buildingManager.getBuildings().forEach((b) => {
-      if (!b.state.isAutoClickerActive || !b.state.isAutoClickerUnlocked)
-        return;
+      if (b.type.isRoad) return;
 
       if (now - b.lastAutoClickTime >= b.state.autoClickerInterval) {
-        this.harvestBuilding(b, true);
+        this.harvestBuilding(b);
         b.lastAutoClickTime = now;
       }
     });
 
-    // personnages
+    // Personnes
     this.peopleManager.update(now);
+
+    if (now - this.lastStatsUpdate > 250) {
+      this.lastStatsUpdate = now;
+      this.emitState();
+    }
   };
 
   private onPointerDown(e: FederatedPointerEvent) {
@@ -97,20 +108,12 @@ export class Game {
     if (hitBuilding) {
       if (isBuildingMode) return;
 
-      // Routes : pas d'interaction, pas de sélection, pas de harvest
       if (hitBuilding.type.isRoad) {
-        // on déselectionne éventuellement un bâtiment précédemment sélectionné
         this.deselectBuilding();
         return;
       }
 
       this.selectBuilding(hitBuilding);
-
-      // si auto-click actif : pas de clic manuel
-      if (!hitBuilding.state.isAutoClickerActive) {
-        this.harvestBuilding(hitBuilding, false);
-      }
-
       e.stopPropagation();
     } else {
       if (isBuildingMode) {
@@ -136,16 +139,16 @@ export class Game {
     }
   }
 
-  public harvestBuilding(building: Building, isAuto: boolean) {
+  public harvestBuilding(building: Building) {
     const income = building.getIncome();
-    this.money += income;
+    if (income <= 0) return;
 
-    if (!isAuto) this.totalClicks++;
+    this.money += income;
+    this.totalClicks++;
 
     const center = building.getCenterGlobalPosition();
     new FloatingText(this.app, income, center.x, center.y);
 
-    building.pulse();
     this.emitState();
   }
 
@@ -172,7 +175,7 @@ export class Game {
   public upgradeSelectedBuilding() {
     if (!this.selectedBuilding || this.isPaused) return;
     const b = this.selectedBuilding;
-    if (b.type.isRoad) return; // pas d'upgrade pour les routes
+    if (b.type.isRoad) return;
 
     const cost = calculateUpgradeCost(b.type, b.state.level);
 
@@ -189,59 +192,27 @@ export class Game {
   }
 
   public toggleAutoClicker() {
-    if (!this.selectedBuilding || this.isPaused) return;
-    const b = this.selectedBuilding;
-    if (b.type.isRoad) return;
-
-    const hasAuto = b.state.isAutoClickerUnlocked;
-    const canUnlockByLevel =
-      b.state.level >= b.type.autoClickerUnlockLevel;
-
-    if (!hasAuto) {
-      if (!canUnlockByLevel) return;
-
-      const cost = calculateAutoClickerUpgradeCost(
-        b.type,
-        b.state.autoClickerLevel
-      ); // level 0 -> prix niv 1
-      if (this.money < cost) return;
-
-      this.money -= cost;
-
-      b.updateState({
-        isAutoClickerUnlocked: true,
-        autoClickerLevel: 1,
-        isAutoClickerActive: true,
-        autoClickerInterval: 2000,
-      });
-      b.lastAutoClickTime = performance.now();
-      this.emitState();
-      return;
-    }
-
-    const nextActive = !b.state.isAutoClickerActive;
-    b.updateState({ isAutoClickerActive: nextActive });
-    if (nextActive) {
-      b.lastAutoClickTime = performance.now();
-    }
-    this.emitState();
+    // plus utilisé (prod toujours auto), conservé pour compat
   }
 
   public upgradeAutoClickerSpeed() {
     if (!this.selectedBuilding || this.isPaused) return;
     const b = this.selectedBuilding;
-    if (!b.state.isAutoClickerUnlocked || b.type.isRoad) return;
+    if (b.type.isRoad) return;
 
     const currentLevel = b.state.autoClickerLevel;
     if (currentLevel >= b.type.autoClickerMaxLevel) return;
 
-    const cost = calculateAutoClickerUpgradeCost(b.type, currentLevel);
+    const cost = calculateAutoClickerUpgradeCost(
+      b.type,
+      currentLevel
+    );
     if (this.money < cost) return;
 
     this.money -= cost;
 
     const newLevel = currentLevel + 1;
-    const newInterval = Math.max(100, b.state.autoClickerInterval * 0.9);
+    const newInterval = Math.max(200, b.state.autoClickerInterval * 0.9);
 
     b.updateState({
       autoClickerLevel: newLevel,
@@ -251,12 +222,11 @@ export class Game {
     this.emitState();
   }
 
-  // ---- Pause / Reprise avec correction des timers ----
   public pause() {
     if (!this.isPaused) {
       this.isPaused = true;
       this.pauseStartedAt = performance.now();
-      this.peopleManager.pauseAll(); // gèle les personnages
+      this.peopleManager.pauseAll();
       this.emitState();
     }
   }
@@ -266,14 +236,12 @@ export class Game {
       const now = performance.now();
       const delta = now - this.pauseStartedAt;
 
-      // décale les timers des auto-clickers
       this.buildingManager.getBuildings().forEach((b) => {
         b.lastAutoClickTime += delta;
       });
 
-      // décale le timer de spawn des persos
       this.peopleManager.shiftTimers(delta);
-      this.peopleManager.resumeAll(); // redémarre les personnages
+      this.peopleManager.resumeAll();
 
       this.isPaused = false;
       this.pauseStartedAt = null;
@@ -281,7 +249,28 @@ export class Game {
     }
   }
 
+  public getSelectedBuildingScreenPosition(): Point | null {
+    if (!this.selectedBuilding) return null;
+    return this.selectedBuilding.getCenterGlobalPosition();
+  }
+
+  private computeGlobalStats() {
+    const occupantsByType: Record<string, number> = {};
+    this.buildingManager.getBuildings().forEach((b) => {
+      const typeId = b.type.id;
+      occupantsByType[typeId] =
+        (occupantsByType[typeId] || 0) + b.state.currentOccupants;
+    });
+
+    const movingPeopleCount = this.peopleManager.getPeopleCount();
+
+    return { occupantsByType, movingPeopleCount };
+  }
+
   private emitState() {
+    const { occupantsByType, movingPeopleCount } =
+      this.computeGlobalStats();
+
     this.onStateChange({
       money: this.money,
       totalClicks: this.totalClicks,
@@ -289,6 +278,8 @@ export class Game {
         ? { ...this.selectedBuilding.state }
         : null,
       isPaused: this.isPaused,
+      movingPeopleCount,
+      occupantsByType,
     });
   }
 

@@ -1,4 +1,6 @@
 import { Application, Container, Point } from 'pixi.js';
+import { CELL_SIZE } from '../types/types';
+import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { Person } from './Person';
 
@@ -11,6 +13,8 @@ export class PeopleManager {
   private lastSpawnTime = performance.now();
   private readonly SPAWN_INTERVAL_MS = 4000;
 
+  private lastTileKey = new Map<Person, string>();
+
   constructor(
     app: Application,
     world: Container,
@@ -22,10 +26,16 @@ export class PeopleManager {
   }
 
   public update(now: number) {
+    this.people = this.people.filter((p) => !p.destroyed);
+
     if (now - this.lastSpawnTime >= this.SPAWN_INTERVAL_MS) {
       if (this.trySpawnPerson()) {
         this.lastSpawnTime = now;
       }
+    }
+
+    for (const p of this.people) {
+      this.maybeTryEnterAdjacentBuilding(p);
     }
   }
 
@@ -34,6 +44,7 @@ export class PeopleManager {
   }
 
   public pauseAll() {
+    this.people = this.people.filter((p) => !p.destroyed);
     this.people.forEach((p) => p.setPaused(true));
   }
 
@@ -42,32 +53,32 @@ export class PeopleManager {
     this.people.forEach((p) => p.setPaused(false));
   }
 
+  public getPeopleCount(): number {
+    this.people = this.people.filter((p) => !p.destroyed);
+    return this.people.length;
+  }
+
   private trySpawnPerson(): boolean {
     const roads = this.buildingManager.getRoadBuildings();
     if (roads.length < 2) return false;
 
-    // extrémités = routes avec exactement 1 voisin route
     const endpoints = roads.filter(
       (r) => this.buildingManager.getRoadNeighbors(r).length === 1
     );
     if (endpoints.length < 2) return false;
 
-    // 1. choisir start / end parmi les endpoints
     const start =
       endpoints[Math.floor(Math.random() * endpoints.length)];
-    let end: typeof start | null = null;
+    let end: Building | null = null;
     while (!end || end === start) {
       end = endpoints[Math.floor(Math.random() * endpoints.length)];
     }
 
-    // 2. chemin direct le plus court
     const directPath = this.findPath(start, end);
     if (!directPath || directPath.length < 2) return false;
 
     let finalPath = directPath;
 
-    // 3. tentative de détour via une case route intermédiaire
-    //    (qui n'est ni start, ni end, ni déjà dans le chemin direct)
     const candidates = roads.filter(
       (b) => b !== start && b !== end && !directPath.includes(b)
     );
@@ -85,11 +96,7 @@ export class PeopleManager {
         pathToVia.length >= 2 &&
         pathFromVia.length >= 2
       ) {
-        // on concatène start -> via -> end
-        // en évitant de doubler le noeud 'via'
         const merged = [...pathToVia, ...pathFromVia.slice(1)];
-
-        // si le chemin via est plus long que le direct, c'est bien un détour -> on l'utilise
         if (merged.length > directPath.length) {
           finalPath = merged;
         }
@@ -99,23 +106,23 @@ export class PeopleManager {
     if (!finalPath || finalPath.length < 2) return false;
 
     const pathPoints = finalPath.map(
-      (b) => new Point(b.x, b.y) // centres déjà en coordonnées monde
+      (b) => new Point(b.x, b.y)
     );
 
     const person = new Person(this.app, pathPoints);
+    person.zIndex = 1000;
     this.world.addChild(person);
     this.people.push(person);
 
     return true;
   }
 
-  // BFS simple sur le graphe des routes
-  private findPath(start: any, end: any): any[] | null {
+  private findPath(start: Building, end: Building): Building[] | null {
     if (start === end) return [start];
 
-    const queue: any[] = [start];
-    const visited = new Set<any>([start]);
-    const parent = new Map<any, any>();
+    const queue: Building[] = [start];
+    const visited = new Set<Building>([start]);
+    const parent = new Map<Building, Building>();
 
     while (queue.length > 0) {
       const current = queue.shift()!;
@@ -133,16 +140,60 @@ export class PeopleManager {
 
     if (!visited.has(end)) return null;
 
-    const path: any[] = [];
-    let cur: any = end;
+    const path: Building[] = [];
+    let cur: Building | undefined = end;
     while (cur) {
       path.unshift(cur);
-      cur = parent.get(cur);
+      const p = parent.get(cur);
+      if (!p) break;
+      cur = p;
       if (cur === start) {
         path.unshift(start);
         break;
       }
     }
     return path;
+  }
+
+  private maybeTryEnterAdjacentBuilding(person: Person) {
+    const gx = Math.round(person.x / CELL_SIZE);
+    const gy = Math.round(person.y / CELL_SIZE);
+    const key = `${gx},${gy}`;
+
+    if (this.lastTileKey.get(person) === key) return;
+    this.lastTileKey.set(person, key);
+
+    const road = this.buildingManager.getRoadBuildingAt(gx, gy);
+    if (!road) return;
+
+    const candidates =
+      this.buildingManager.getAdjacentNonRoadBuildings(gx, gy);
+    if (candidates.length === 0) return;
+
+    const chance = 0.25;
+    if (Math.random() > chance) return;
+
+    const available = candidates.filter(
+      (b) => b.state.currentOccupants < b.type.capacity
+    );
+    if (available.length === 0) return;
+
+    const target =
+      available[Math.floor(Math.random() * available.length)];
+
+    const roadCenter = new Point(road.x, road.y);
+    const buildingCenter = new Point(target.x, target.y);
+    const currentPos = person.position.clone();
+
+    // trajet "classique" : position actuelle → centre de la route → centre du bâtiment
+    const path: Point[] = [currentPos, roadCenter, buildingCenter];
+
+    person.setPath(path, () => {
+      target.updateState({
+        currentOccupants: target.state.currentOccupants + 1,
+      });
+      this.lastTileKey.delete(person);
+      person.destroy();
+    });
   }
 }

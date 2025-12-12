@@ -9,7 +9,9 @@ export interface BuildingType {
   autoClickerMaxLevel: number;
   baseHealth: number;
   capacity: number;
-  isRoad?: boolean; // <- true pour les routes
+  isRoad?: boolean;
+  category: 'housing' | 'commerce' | 'industry' | 'infrastructure';
+  baseIntervalMs: number; // ✅ périodicité de base, propre à chaque type
 }
 
 export interface BuildingState {
@@ -39,6 +41,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 5,
     baseHealth: 100,
     capacity: 2,
+    category: 'housing',
+    baseIntervalMs: 2500, // 2,5s
   },
   {
     id: 'shop',
@@ -51,6 +55,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 7,
     baseHealth: 250,
     capacity: 5,
+    category: 'commerce',
+    baseIntervalMs: 2000, // 2s
   },
   {
     id: 'factory',
@@ -63,19 +69,23 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 10,
     baseHealth: 500,
     capacity: 10,
+    category: 'industry',
+    baseIntervalMs: 1500, // 1,5s
   },
   {
     id: 'road',
     name: 'Route',
     cost: 20,
     baseIncome: 0,
-    color: 0x6b7280, // gris
+    color: 0x6b7280,
     maxLevel: 1,
     autoClickerUnlockLevel: 999,
     autoClickerMaxLevel: 0,
     baseHealth: 9999,
     capacity: 0,
     isRoad: true,
+    category: 'infrastructure',
+    baseIntervalMs: 0,
   },
 ];
 
@@ -94,7 +104,6 @@ export const calculateIncome = (type: BuildingType, level: number): number => {
   return type.baseIncome * level;
 };
 
-// coût croissant pour le niveau suivant d'auto-clicker
 export const calculateAutoClickerUpgradeCost = (
   type: BuildingType,
   currentAutoClickerLevel: number

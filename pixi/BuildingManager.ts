@@ -77,9 +77,7 @@ export class BuildingManager {
       ghost.alpha = 0.9;
       this.ghost = ghost;
       this.world.addChild(this.ghost);
-      this.app.canvas.style.cursor = 'none';
-    } else {
-      this.app.canvas.style.cursor = 'default';
+      // ✅ ne touche plus au curseur (toujours croix)
     }
   }
 
@@ -90,8 +88,6 @@ export class BuildingManager {
   public getBuildings(): Building[] {
     return Array.from(this.buildingsMap.values());
   }
-
-  // ---- Routes & graph helpers ----
 
   public getRoadBuildings(): Building[] {
     return this.getBuildings().filter((b) => b.type.isRoad);
@@ -108,17 +104,39 @@ export class BuildingManager {
     for (const [dx, dy] of dirs) {
       const gx = b.gridX + dx;
       const gy = b.gridY + dy;
-      const nb = this.buildingsMap.get(this.key(gx, gy));
+      const nb = this.getBuildingAtGrid(gx, gy);
       if (nb && nb.type.isRoad) {
         res.push(nb);
       }
     }
     return res;
   }
-  
+
   public getRoadBuildingAt(gx: number, gy: number): Building | null {
-    const b = this.buildingsMap.get(this.key(gx, gy));
+    const b = this.getBuildingAtGrid(gx, gy);
     return b && b.type.isRoad ? b : null;
+  }
+
+  public getBuildingAtGrid(gx: number, gy: number): Building | null {
+    if (gx < 0 || gx >= GRID_SIZE || gy < 0 || gy >= GRID_SIZE) return null;
+    return this.buildingsMap.get(this.key(gx, gy)) || null;
+  }
+
+  public getAdjacentNonRoadBuildings(gx: number, gy: number): Building[] {
+    const res: Building[] = [];
+    const dirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
+    for (const [dx, dy] of dirs) {
+      const b = this.getBuildingAtGrid(gx + dx, gy + dy);
+      if (b && !b.type.isRoad && b.type.capacity > 0) {
+        res.push(b);
+      }
+    }
+    return res;
   }
 
   private onPointerMove(e: FederatedPointerEvent) {

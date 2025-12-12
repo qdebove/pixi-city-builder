@@ -1,24 +1,9 @@
 import { Application, Container, Text, TextStyle } from 'pixi.js';
 
-// Style unique, doré, compatible avec ta version de Pixi
-const GOLD_TEXT_STYLE = new TextStyle({
-  fontFamily: 'Arial',
-  fontSize: 28,
-  fontWeight: 'bold',
-  fill: '#fbbf24',            // <- une seule couleur, plus de tableau
-  stroke: '#000000',
-  dropShadow: {
-    color: '#000000',
-    blur: 4,
-    angle: Math.PI / 6,
-    distance: 2,
-  }
-});
-
 export class FloatingText extends Container {
   private app: Application;
   private textElement: Text;
-  private readonly DURATION = 1000;
+  private readonly DURATION = 800;
   private startTime: number;
   private startY: number;
 
@@ -26,18 +11,31 @@ export class FloatingText extends Container {
     super();
     this.app = app;
 
-    // Léger random pour ne pas avoir tous les textes superposés
-    this.x = x + (Math.random() * 20 - 10);
-    this.y = y - 20;
+    this.x = x + (Math.random() * 10 - 5);
+    this.y = y - 10;
     this.startY = this.y;
     this.startTime = performance.now();
 
-    this.textElement = new Text(`+${amount}€`, GOLD_TEXT_STYLE);
+    const style = new TextStyle({
+      fontFamily: 'Arial',
+      fontSize: 16, // ✅ plus petit
+      fontWeight: 'bold',
+      fill: '#fbbf24', // or doux
+      stroke: { color: '#000000', width: 2 },
+      dropShadow: {
+        color: '#000000',
+        blur: 2,
+        angle: Math.PI / 6,
+        distance: 1,
+      },
+    });
+
+    this.textElement = new Text({ text: `+${amount}€`, style });
     this.textElement.anchor.set(0.5);
     this.addChild(this.textElement);
 
-    this.app.stage.addChild(this);
-    this.app.ticker.add(this.update, this);
+    app.stage.addChild(this);
+    app.ticker.add(this.update, this);
   }
 
   private update() {
@@ -47,8 +45,8 @@ export class FloatingText extends Container {
 
     const ease = 1 - Math.pow(1 - progress, 3);
 
-    this.y = this.startY - 100 * ease;
-    this.alpha = 1 - Math.pow(progress, 3);
+    this.y = this.startY - 40 * ease;
+    this.alpha = 1 - ease;
 
     if (progress >= 1) {
       this.app.ticker.remove(this.update, this);

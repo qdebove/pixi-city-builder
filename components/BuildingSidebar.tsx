@@ -1,5 +1,9 @@
-import { BUILDING_TYPES, BuildingType, calculateIncome } from '@/types/types';
-import React from 'react';
+import {
+  BUILDING_TYPES,
+  BuildingType,
+  calculateIncome,
+} from '@/types/types';
+import React, { useState } from 'react';
 
 interface SidebarProps {
   money: number;
@@ -8,99 +12,152 @@ interface SidebarProps {
   draggingMode: BuildingType | null;
 }
 
+const CATEGORY_LABELS: Record<
+  BuildingType['category'],
+  string
+> = {
+  housing: 'Habitations',
+  commerce: 'Commerces',
+  industry: 'Industries',
+  infrastructure: 'Infrastructures',
+};
+
 export const BuildingSidebar: React.FC<SidebarProps> = ({
   money,
   totalClicks,
   onSelect,
   draggingMode,
 }) => {
+  const [showAffordableOnly, setShowAffordableOnly] = useState(false);
+
+  const categories = Array.from(
+    new Set(BUILDING_TYPES.map((t) => t.category))
+  );
+
+  const grouped = categories.map((cat) => ({
+    id: cat,
+    label: CATEGORY_LABELS[cat],
+    items: BUILDING_TYPES
+      .filter((t) => t.category === cat)
+      .sort((a, b) => a.cost - b.cost),
+  }));
+
   return (
-    <aside
-      id="sidebar"
-      className="w-full shrink-0 bg-slate-800 flex flex-col"
-    >
-      <h1 className="text-xl font-bold text-sky-400 uppercase tracking-wider mb-4">
+    <aside className="w-full shrink-0 bg-slate-800 flex flex-col">
+      <h1 className="text-xl font-bold text-sky-400 uppercase tracking-wider mb-2">
         Mini City Tycoon
       </h1>
 
-      {/* Stats Panel */}
-      <div className="bg-slate-900 p-4 rounded-lg mb-6 border border-slate-700">
-        <div className="flex justify-between mb-2 text-sm">
-          <span>Banque :</span>
-          <span className="font-mono font-bold text-amber-400">
-            {money.toLocaleString('fr-FR', {
-              style: 'currency',
-              currency: 'EUR',
-              maximumFractionDigits: 0,
-            })}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>Clics Totaux :</span>
-          <span className="font-mono font-bold text-amber-400">
-            {totalClicks.toLocaleString()}
-          </span>
-        </div>
+      <div className="text-xs text-slate-400 mb-3">
+        Ticks de production :{' '}
+        <span className="font-mono text-amber-400">
+          {totalClicks.toLocaleString()}
+        </span>
       </div>
+
+      <label className="flex items-center gap-2 text-xs mb-4">
+        <input
+          type="checkbox"
+          className="accent-sky-500"
+          checked={showAffordableOnly}
+          onChange={(e) => setShowAffordableOnly(e.target.checked)}
+        />
+        Afficher uniquement les bâtiments abordables
+      </label>
 
       <h2 className="text-sm text-slate-400 uppercase font-semibold border-b border-slate-700 pb-1 mb-3">
         Constructions
       </h2>
 
-      <div className="flex flex-col space-y-3">
-        {BUILDING_TYPES.map((type) => {
-          const isDisabled = money < type.cost;
-          const isActive = draggingMode?.id === type.id;
-
-          const handleClick = () => {
-            if (isDisabled) return;
-            onSelect(isActive ? null : type);
-          };
-
-          const baseGain = calculateIncome(type, 1); // gain au niveau 1
+      <div className="flex flex-col gap-2">
+        {grouped.map((group) => {
+          if (group.items.length === 0) return null;
 
           return (
-            <div
-              key={type.id}
-              className={`
-                flex items-center p-3 rounded-lg cursor-pointer transition duration-150 ease-in-out 
-                ${
-                  isDisabled
-                    ? 'opacity-50 grayscale cursor-not-allowed'
-                    : 'bg-slate-700 hover:bg-slate-600'
-                }
-                ${isActive ? 'ring-2 ring-sky-400 bg-sky-900/40' : ''}
-              `}
-              onClick={handleClick}
+            <details
+              key={group.id}
+              className="bg-slate-900/60 border border-slate-700 rounded-lg"
+              open
             >
-              <div
-                className="w-8 h-8 rounded mr-3 shrink-0"
-                style={{
-                  backgroundColor: `#${type.color
-                    .toString(16)
-                    .padStart(6, '0')}`,
-                }}
-              ></div>
-              <div className="flex flex-col text-sm">
-                <span className="font-semibold">{type.name}</span>
-                <span className="text-xs text-slate-300">
-                  Coût: {type.cost}€{' '}
-                  {!type.isRoad && (
-                    <>| Gain Niv.1: {baseGain}€ / clic</>
-                  )}
-                </span>
+              <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-200 flex items-center justify-between">
+                <span>{group.label}</span>
+              </summary>
+
+              <div className="px-3 pb-2 pt-1 flex flex-col gap-2">
+                {group.items
+                  .filter((type) =>
+                    showAffordableOnly ? money >= type.cost : true
+                  )
+                  .map((type) => {
+                    const isDisabled = money < type.cost;
+                    const isActive = draggingMode?.id === type.id;
+                    const handleClick = () => {
+                      if (isDisabled) return;
+                      onSelect(isActive ? null : type);
+                    };
+
+                    const baseGain = calculateIncome(type, 1);
+                    const periodSec =
+                      type.baseIntervalMs > 0
+                        ? (type.baseIntervalMs / 1000).toFixed(2)
+                        : null;
+
+                    return (
+                      <div
+                        key={type.id}
+                        className={`
+                          flex items-center p-2 rounded-lg cursor-pointer transition duration-150 ease-in-out 
+                          ${
+                            isDisabled
+                              ? 'opacity-50 grayscale cursor-not-allowed'
+                              : 'bg-slate-700 hover:bg-slate-600'
+                          }
+                          ${
+                            isActive
+                              ? 'ring-2 ring-sky-400 bg-sky-900/40'
+                              : ''
+                          }
+                        `}
+                        onClick={handleClick}
+                      >
+                        <div
+                          className="w-7 h-7 rounded mr-3 shrink-0"
+                          style={{
+                            backgroundColor: `#${type.color
+                              .toString(16)
+                              .padStart(6, '0')}`,
+                          }}
+                        ></div>
+                        <div className="flex flex-col text-xs">
+                          <span className="font-semibold text-sm">
+                            {type.name}
+                          </span>
+                          <span className="text-slate-300">
+                            Coût : {type.cost}€
+                            {!type.isRoad && periodSec && (
+                              <>
+                                {' '}
+                                | Gain base : {baseGain}€ / tick •{' '}
+                                {periodSec}s
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-            </div>
+            </details>
           );
         })}
       </div>
 
-      <div className="mt-auto pt-6 text-xs text-slate-500 border-t border-slate-700">
+      <div className="mt-auto pt-4 text-xs text-slate-500 border-t border-slate-700">
         <strong>Contrôles :</strong>
         <br />
-        🖱️ Clic Gauche : Poser / Récolter
+        🖱️ Clic Gauche : Poser / Sélectionner
         <br />
-        🖱️ Clic Droit : Annuler mode construction / Déplacer caméra
+        🖱️ Clic Droit : Annuler / Déplacer caméra
         <br />
         🔍 Molette : Zoomer / Dézoomer
       </div>

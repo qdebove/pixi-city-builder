@@ -12,7 +12,6 @@ interface DetailsProps {
   state: BuildingState;
   money: number;
   onUpgrade: () => void;
-  onToggleAutoClicker: () => void;
   onUpgradeAutoClicker: () => void;
 }
 
@@ -21,30 +20,38 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   state,
   money,
   onUpgrade,
-  onToggleAutoClicker,
   onUpgradeAutoClicker,
 }) => {
-  const currentIncome = calculateIncome(type, state.level);
+  const baseIncome = calculateIncome(type, state.level);
   const upgradeCost = calculateUpgradeCost(type, state.level);
   const isMaxLevel = state.level >= type.maxLevel;
   const canAffordUpgrade = money >= upgradeCost;
 
-  const hasAutoClicker = state.isAutoClickerUnlocked;
-  const canUnlockByLevel = state.level >= type.autoClickerUnlockLevel;
-  const isAutoMax = state.autoClickerLevel >= type.autoClickerMaxLevel;
-
+  const isAutoMax =
+    state.autoClickerLevel >= type.autoClickerMaxLevel;
   const autoClickerCost = calculateAutoClickerUpgradeCost(
     type,
     state.autoClickerLevel
   );
   const canAffordAutoClicker = money >= autoClickerCost;
-  const autoClickerSpeed =
-    state.isAutoClickerUnlocked && state.autoClickerInterval > 0
-      ? (1000 / state.autoClickerInterval).toFixed(1)
-      : '0';
+
+  const ratio =
+    type.capacity > 0
+      ? Math.min(1, state.currentOccupants / type.capacity)
+      : 0;
+  const currentTickIncome = Math.floor(baseIncome * (1 + ratio));
+
+  const ticksPerSecond =
+    state.autoClickerInterval > 0
+      ? 1000 / state.autoClickerInterval
+      : 0;
+  const intervalSec =
+    state.autoClickerInterval > 0
+      ? state.autoClickerInterval / 1000
+      : 0;
 
   return (
-    <div className="p-4 bg-slate-700/50 rounded-lg shadow-inner mt-4 border border-slate-600">
+    <div className="p-4 bg-slate-700/90 rounded-lg shadow-xl border border-slate-600">
       <h3 className="text-lg font-bold text-sky-300 mb-3">
         {type.name} (Niv. {state.level})
       </h3>
@@ -57,17 +64,55 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
           </span>
         </p>
         <p>
-          👤 Pers. :{' '}
+          👤 Occupants :{' '}
           <span className="font-mono">
             {state.currentOccupants} / {type.capacity}
           </span>
         </p>
+
+        {/* Prod actuelle + tooltip custom joli */}
+        <div className="col-span-2">
+          <div className="relative inline-flex items-center gap-1 group cursor-help">
+            <span>💰 Prod actuelle :</span>
+            <span className="font-mono text-amber-400">
+              {currentTickIncome}€ / tick
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-400/40 text-amber-200">
+              ?
+            </span>
+
+            {/* Tooltip */}
+            <div className="pointer-events-none absolute left-0 top-full mt-1 w-64 rounded-md bg-slate-900/95 border border-slate-600 px-3 py-2 text-[11px] text-slate-100 shadow-xl opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition">
+              <p className="font-semibold text-amber-300 mb-1">
+                Détails de la production
+              </p>
+              <p className="flex justify-between">
+                <span>Base</span>
+                <span className="font-mono">{baseIncome}€ / tick</span>
+              </p>
+              {type.capacity > 0 && (
+                <p className="flex justify-between">
+                  <span>Occupants</span>
+                  <span className="font-mono">
+                    {state.currentOccupants} / {type.capacity}
+                  </span>
+                </p>
+              )}
+              <div className="mt-1 border-t border-slate-700 pt-1 flex justify-between">
+                <span>Total actuel</span>
+                <span className="font-mono text-amber-300">
+                  {currentTickIncome}€ / tick
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <p>
-          💰 Gain/Clic :{' '}
-          <span className="font-mono text-amber-400">{currentIncome}€</span>
-        </p>
-        <p>
-          📈 Max Niv. : <span className="font-mono">{type.maxLevel}</span>
+          ⚙️ Vitesse :{' '}
+          <span className="font-mono">
+            {ticksPerSecond.toFixed(2)} ticks/s ({intervalSec.toFixed(2)}s)
+          </span>
         </p>
       </div>
 
@@ -87,60 +132,34 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
             >
               {isMaxLevel
                 ? 'Niveau Max'
-                : `Monter Niveau ${state.level + 1} (${upgradeCost}€)`}
+                : `Améliorer au Niv. ${
+                    state.level + 1
+                  } (${upgradeCost}€)`}
             </button>
           </div>
 
           <h4 className="text-sm font-semibold text-slate-400 border-t border-slate-600 pt-3 mt-3 mb-2">
-            Auto-Clic
+            Production passive
           </h4>
 
           <div className="space-y-2">
             <button
-              onClick={onToggleAutoClicker}
-              disabled={
-                (!hasAutoClicker &&
-                  (!canUnlockByLevel || !canAffordAutoClicker)) ||
-                (hasAutoClicker && false)
-              }
-              className={`w-full py-2 rounded transition ${
-                !hasAutoClicker
-                  ? canUnlockByLevel && canAffordAutoClicker
-                    ? 'bg-sky-600 hover:bg-sky-500'
-                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : state.isAutoClickerActive
-                  ? 'bg-amber-600 hover:bg-amber-500'
-                  : 'bg-sky-600 hover:bg-sky-500'
+              onClick={onUpgradeAutoClicker}
+              disabled={isAutoMax || !canAffordAutoClicker}
+              className={`w-full py-2 rounded text-sm transition ${
+                isAutoMax
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : canAffordAutoClicker
+                  ? 'bg-purple-600 hover:bg-purple-500'
+                  : 'bg-gray-800 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {!hasAutoClicker
-                ? canUnlockByLevel
-                  ? `Acheter Auto-Clic (Niv. 1 – ${autoClickerCost}€)`
-                  : `Débloquer au Niveau ${type.autoClickerUnlockLevel}`
-                : state.isAutoClickerActive
-                ? `Désactiver Auto-Clic (Niv. ${state.autoClickerLevel}, ${autoClickerSpeed}/s)`
-                : `Activer Auto-Clic (Niv. ${state.autoClickerLevel}, ${autoClickerSpeed}/s)`}
+              {isAutoMax
+                ? 'Vitesse max atteinte'
+                : `Améliorer la vitesse (niv. ${
+                    state.autoClickerLevel + 1
+                  } – ${autoClickerCost}€)`}
             </button>
-
-            {hasAutoClicker && (
-              <button
-                onClick={onUpgradeAutoClicker}
-                disabled={isAutoMax || !canAffordAutoClicker}
-                className={`w-full py-2 rounded transition text-sm ${
-                  isAutoMax
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : canAffordAutoClicker
-                    ? 'bg-purple-600 hover:bg-purple-500'
-                    : 'bg-gray-800 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {isAutoMax
-                  ? `Vitesse max atteinte (Niv. ${state.autoClickerLevel})`
-                  : `Améliorer Vitesse (vers Niv. ${
-                      state.autoClickerLevel + 1
-                    }) – ${autoClickerCost}€`}
-              </button>
-            )}
           </div>
         </>
       )}
