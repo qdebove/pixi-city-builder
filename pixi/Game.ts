@@ -97,6 +97,13 @@ export class Game {
     if (hitBuilding) {
       if (isBuildingMode) return;
 
+      // Routes : pas d'interaction, pas de sélection, pas de harvest
+      if (hitBuilding.type.isRoad) {
+        // on déselectionne éventuellement un bâtiment précédemment sélectionné
+        this.deselectBuilding();
+        return;
+      }
+
       this.selectBuilding(hitBuilding);
 
       // si auto-click actif : pas de clic manuel

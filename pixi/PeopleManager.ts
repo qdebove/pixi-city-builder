@@ -46,11 +46,13 @@ export class PeopleManager {
     const roads = this.buildingManager.getRoadBuildings();
     if (roads.length < 2) return false;
 
+    // extrémités = routes avec exactement 1 voisin route
     const endpoints = roads.filter(
       (r) => this.buildingManager.getRoadNeighbors(r).length === 1
     );
     if (endpoints.length < 2) return false;
 
+    // 1. choisir start / end parmi les endpoints
     const start =
       endpoints[Math.floor(Math.random() * endpoints.length)];
     let end: typeof start | null = null;
@@ -58,10 +60,45 @@ export class PeopleManager {
       end = endpoints[Math.floor(Math.random() * endpoints.length)];
     }
 
-    const pathBuildings = this.findPath(start, end);
-    if (!pathBuildings || pathBuildings.length < 2) return false;
+    // 2. chemin direct le plus court
+    const directPath = this.findPath(start, end);
+    if (!directPath || directPath.length < 2) return false;
 
-    const pathPoints = pathBuildings.map(
+    let finalPath = directPath;
+
+    // 3. tentative de détour via une case route intermédiaire
+    //    (qui n'est ni start, ni end, ni déjà dans le chemin direct)
+    const candidates = roads.filter(
+      (b) => b !== start && b !== end && !directPath.includes(b)
+    );
+
+    if (candidates.length > 0) {
+      const via =
+        candidates[Math.floor(Math.random() * candidates.length)];
+
+      const pathToVia = this.findPath(start, via);
+      const pathFromVia = this.findPath(via, end);
+
+      if (
+        pathToVia &&
+        pathFromVia &&
+        pathToVia.length >= 2 &&
+        pathFromVia.length >= 2
+      ) {
+        // on concatène start -> via -> end
+        // en évitant de doubler le noeud 'via'
+        const merged = [...pathToVia, ...pathFromVia.slice(1)];
+
+        // si le chemin via est plus long que le direct, c'est bien un détour -> on l'utilise
+        if (merged.length > directPath.length) {
+          finalPath = merged;
+        }
+      }
+    }
+
+    if (!finalPath || finalPath.length < 2) return false;
+
+    const pathPoints = finalPath.map(
       (b) => new Point(b.x, b.y) // centres déjà en coordonnées monde
     );
 
@@ -74,6 +111,8 @@ export class PeopleManager {
 
   // BFS simple sur le graphe des routes
   private findPath(start: any, end: any): any[] | null {
+    if (start === end) return [start];
+
     const queue: any[] = [start];
     const visited = new Set<any>([start]);
     const parent = new Map<any, any>();
@@ -82,7 +121,8 @@ export class PeopleManager {
       const current = queue.shift()!;
       if (current === end) break;
 
-      for (const nb of this.buildingManager.getRoadNeighbors(current)) {
+      const neighbors = this.buildingManager.getRoadNeighbors(current);
+      for (const nb of neighbors) {
         if (!visited.has(nb)) {
           visited.add(nb);
           parent.set(nb, current);

@@ -87,8 +87,8 @@ const Home: React.FC = () => {
 
       {/* Layout principal */}
       <div className="flex h-full w-full">
-        {/* Sidebar UI */}
-        <div className="w-[300px] shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col p-4 shadow-2xl z-10">
+        {/* Sidebar + détails : toute la colonne scrollable */}
+        <div className="w-[300px] shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto">
           <BuildingSidebar
             money={gameState.money}
             totalClicks={gameState.totalClicks}

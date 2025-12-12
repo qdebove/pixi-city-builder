@@ -16,6 +16,7 @@ export class Person extends Container {
     const g = new Graphics();
     g.circle(0, 0, 6).fill(0xf9a8d4).stroke({ width: 2, color: 0x1f2933 });
     this.addChild(g);
+    this.zIndex = 1000;
 
     if (path.length > 0) {
       this.position.copyFrom(path[0]);
