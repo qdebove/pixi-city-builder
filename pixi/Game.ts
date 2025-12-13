@@ -11,6 +11,7 @@ import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
 import { PeopleManager } from './PeopleManager';
 import { WorldView } from './WorldView';
+import { SimulationClock, TickContext } from './SimulationClock';
 
 export interface GameUIState {
   money: number;
@@ -28,6 +29,7 @@ export class Game {
   private worldView: WorldView;
   private buildingManager: BuildingManager;
   private peopleManager: PeopleManager;
+  private simulation: SimulationClock;
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -46,6 +48,11 @@ export class Game {
     this.onStateChange = onStateChange;
 
     this.app = new Application();
+    this.simulation = new SimulationClock({
+      tickDurationMs: 250,
+      maxCatchUpTicks: 6,
+      onTick: this.onSimulationTick,
+    });
     this.init(container);
   }
 
@@ -69,30 +76,27 @@ export class Game {
     );
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
-    this.app.ticker.add(this.update);
+    this.app.ticker.add(this.onFrameUpdate);
 
     this.emitState();
   }
 
-  private update = () => {
-    const now = performance.now();
-    if (this.isPaused) return;
+  private onFrameUpdate = () => {
+    this.simulation.step(this.app.ticker.deltaMS, this.isPaused);
+  };
 
-    // Production passive
-    this.buildingManager.getBuildings().forEach((b) => {
-      if (b.type.isRoad) return;
-
-      if (now - b.lastAutoClickTime >= b.state.autoClickerInterval) {
-        this.harvestBuilding(b);
-        b.lastAutoClickTime = now;
+  private onSimulationTick = (ctx: TickContext) => {
+    this.buildingManager.getBuildings().forEach((building) => {
+      const completedCycles = building.accumulateIncomeProgress(ctx.deltaMs);
+      for (let i = 0; i < completedCycles; i++) {
+        this.harvestBuilding(building);
       }
     });
 
-    // Personnes
-    this.peopleManager.update(now);
+    this.peopleManager.update(ctx);
 
-    if (now - this.lastStatsUpdate > 250) {
-      this.lastStatsUpdate = now;
+    if (ctx.nowMs - this.lastStatsUpdate > 250) {
+      this.lastStatsUpdate = ctx.nowMs;
       this.emitState();
     }
   };
@@ -236,14 +240,6 @@ export class Game {
 
   public resume() {
     if (this.isPaused && this.pauseStartedAt !== null) {
-      const now = performance.now();
-      const delta = now - this.pauseStartedAt;
-
-      this.buildingManager.getBuildings().forEach((b) => {
-        b.lastAutoClickTime += delta;
-      });
-
-      this.peopleManager.shiftTimers(delta);
       this.peopleManager.resumeAll();
 
       this.isPaused = false;

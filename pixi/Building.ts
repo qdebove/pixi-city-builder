@@ -12,7 +12,7 @@ export class Building extends Container {
   public gridY: number;
   public type: BuildingType;
   public state: BuildingState;
-  public lastAutoClickTime: number = 0;
+  private incomeProgressMs = 0;
 
   private visual: Graphics;
   private selectionRing: Graphics;
@@ -89,6 +89,14 @@ export class Building extends Container {
   public updateState(newState: Partial<BuildingState>) {
     this.state = { ...this.state, ...newState };
     this.state.currentOccupants = this.getTotalOccupants();
+
+    if (newState.autoClickerInterval !== undefined) {
+      this.incomeProgressMs = Math.min(
+        this.incomeProgressMs,
+        Math.max(newState.autoClickerInterval, 0)
+      );
+    }
+
     this.drawVisual();
   }
 
@@ -189,6 +197,20 @@ export class Building extends Container {
 
   private updateAnim() {
     // laissé vide pour de futures animations éventuelles
+  }
+
+  public accumulateIncomeProgress(deltaMs: number): number {
+    if (this.type.isRoad) return 0;
+
+    const interval = Math.max(this.state.autoClickerInterval, 50);
+    this.incomeProgressMs += deltaMs;
+
+    const completedCycles = Math.floor(this.incomeProgressMs / interval);
+    if (completedCycles > 0) {
+      this.incomeProgressMs -= completedCycles * interval;
+    }
+
+    return completedCycles;
   }
 
   public destroy(options?: boolean | IDestroyOptions) {
