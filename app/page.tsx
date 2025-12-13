@@ -23,6 +23,11 @@ const Home: React.FC = () => {
     occupantsByType: {},
     peopleByRole: { visitor: 0, staff: 0 },
     occupantsByRole: { visitor: 0, staff: 0 },
+    reputation: {
+      local: 50,
+      premium: 50,
+      regulatoryPressure: 0,
+    },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -175,6 +180,35 @@ const Home: React.FC = () => {
                   </div>
                 )
               )}
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">
+              Réputation
+            </span>
+            <div className="flex gap-3 text-[13px]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-300" />
+                <span className="font-mono text-emerald-200">
+                  {gameState.reputation.local.toFixed(1)}
+                </span>
+                <span className="text-slate-400 text-[11px]">locale</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-300" />
+                <span className="font-mono text-amber-200">
+                  {gameState.reputation.premium.toFixed(1)}
+                </span>
+                <span className="text-slate-400 text-[11px]">premium</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-red-300" />
+                <span className="font-mono text-red-200">
+                  {gameState.reputation.regulatoryPressure.toFixed(1)}
+                </span>
+                <span className="text-slate-400 text-[11px]">régulation</span>
+              </span>
             </div>
           </div>
 
