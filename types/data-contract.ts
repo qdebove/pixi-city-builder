@@ -22,6 +22,15 @@ export type SeedKey = string;
 /** Use for stable, hierarchical tags (e.g. "visitor.premium", "building.hotel") */
 export type Tag = string;
 
+export interface PersonIdentity {
+  firstName: string;
+  lastName: string;
+  age: number;
+  origin?: string;
+  title?: string;
+  motto?: string;
+}
+
 /* ---------------------- 1) AssetDefinition & SpriteRule ------------------- */
 
 /**
@@ -413,6 +422,8 @@ export interface PassiveEffect {
 export interface Worker {
   id: ID;
 
+  identity?: PersonIdentity;
+
   level: number;
   experience: number;
 
@@ -565,6 +576,8 @@ export interface VisitorPreferences {
 
 export interface Visitor {
   id: ID;
+
+  identity?: PersonIdentity;
 
   budget: number;
   patience: number;

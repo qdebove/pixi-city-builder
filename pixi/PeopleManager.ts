@@ -6,6 +6,7 @@ import { Person } from './Person';
 import { TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { PersonFactory } from './data/person-factory';
+import { SelectedPersonSnapshot } from '@/types/ui';
 
 export class PeopleManager {
   private app: Application;
@@ -13,6 +14,8 @@ export class PeopleManager {
   private buildingManager: BuildingManager;
   private spriteResolver: SpriteResolver;
   private personFactory: PersonFactory;
+  private onPersonSelected?: (selected: SelectedPersonSnapshot) => void;
+  private onPersonRemoved?: (id: string) => void;
 
   private people: Person[] = [];
   private elapsedSinceSpawn = 0;
@@ -24,13 +27,17 @@ export class PeopleManager {
     app: Application,
     world: Container,
     buildingManager: BuildingManager,
-    spriteResolver: SpriteResolver
+    spriteResolver: SpriteResolver,
+    onPersonSelected?: (selected: SelectedPersonSnapshot) => void,
+    onPersonRemoved?: (id: string) => void
   ) {
     this.app = app;
     this.world = world;
     this.buildingManager = buildingManager;
     this.spriteResolver = spriteResolver;
     this.personFactory = new PersonFactory();
+    this.onPersonSelected = onPersonSelected;
+    this.onPersonRemoved = onPersonRemoved;
   }
 
   public update(ctx: TickContext) {
@@ -130,12 +137,22 @@ export class PeopleManager {
       pathPoints,
       role,
       profile,
-      this.spriteResolver
+      this.spriteResolver,
+      {
+        onSelected: () => {
+          if (this.onPersonSelected) {
+            this.onPersonSelected({
+              id: person.getId(),
+              role: person.role,
+              profile,
+            });
+          }
+        },
+      }
     );
     person.zIndex = 1000;
     this.world.addChild(person);
     this.people.push(person);
-
     return true;
   }
 
@@ -212,6 +229,9 @@ export class PeopleManager {
     person.setPath(path, () => {
       target.addOccupant(person.role, person.getProfile());
       this.lastTileKey.delete(person);
+      if (this.onPersonRemoved) {
+        this.onPersonRemoved(person.getId());
+      }
       person.destroy();
     });
   }

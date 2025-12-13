@@ -378,7 +378,8 @@ const visitorTemplate = (
   preferences: VisitorPreferences,
   budget: number,
   patience: number,
-  satisfaction: number
+  satisfaction: number,
+  identity: Visitor['identity']
 ): Visitor => ({
   id,
   preferences,
@@ -389,6 +390,7 @@ const visitorTemplate = (
   state: 'arriving',
   timeInCity: 0,
   visuals: { preferredRuleIds: { icon: 'visitor_icon', portrait: 'visitor_portrait' } },
+  identity,
 });
 
 export const VISITOR_ARCHETYPES: Visitor[] = [
@@ -397,23 +399,41 @@ export const VISITOR_ARCHETYPES: Visitor[] = [
     { luxury: 0.4, priceSensitivity: 0.5, variety: 0.7, discretion: 0.6 },
     350,
     0.6,
-    0.6
+    0.6,
+    {
+      firstName: 'Lina',
+      lastName: 'Rives',
+      age: 29,
+      origin: 'Touriste curieuse',
+      title: 'Voyageuse chill',
+      motto: 'Ne jamais manquer une bonne vue.',
+    }
   ),
   visitorTemplate(
     'visitor_premium',
     { luxury: 0.85, priceSensitivity: 0.2, variety: 0.4, discretion: 0.8 },
     700,
     0.75,
-    0.7
+    0.7,
+    {
+      firstName: 'Malo',
+      lastName: 'Dumont',
+      age: 41,
+      origin: 'Client VIP',
+      title: 'Chasseur de suites',
+      motto: 'Le confort est un investissement.',
+    }
   ),
 ];
 
 const workerTemplate = (
   id: string,
   job: JobID,
-  traits: Trait[]
+  traits: Trait[],
+  identity: Worker['identity']
 ): Worker => ({
   id,
+  identity,
   level: 1,
   experience: 0,
   stats: {
@@ -442,8 +462,32 @@ const workerTemplate = (
 });
 
 export const WORKER_ROSTER: Worker[] = [
-  workerTemplate('worker_alix', 'concierge', [TRAITS[0]]),
-  workerTemplate('worker_jade', 'technician', [TRAITS[1]]),
+  workerTemplate(
+    'worker_alix',
+    'concierge',
+    [TRAITS[0]],
+    {
+      firstName: 'Alix',
+      lastName: 'Mercier',
+      age: 32,
+      origin: 'Ancienne hôtesse VIP',
+      title: 'Concierge solaire',
+      motto: 'Chaque arrivée mérite un sourire.',
+    }
+  ),
+  workerTemplate(
+    'worker_jade',
+    'technician',
+    [TRAITS[1]],
+    {
+      firstName: 'Jade',
+      lastName: 'Bourdin',
+      age: 27,
+      origin: 'Ex-maintenance événementielle',
+      title: 'Technicienne méthodique',
+      motto: 'Prévenir plutôt que réparer en urgence.',
+    }
+  ),
 ];
 
 export const CITY_MODEL: City = {

@@ -116,4 +116,8 @@ export class WorldView {
     this.world.x = mousePos.x - worldPosBefore.x * newScale;
     this.world.y = mousePos.y - worldPosBefore.y * newScale;
   }
+
+  public getScale(): number {
+    return this.world.scale.x;
+  }
 }

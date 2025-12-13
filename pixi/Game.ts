@@ -12,17 +12,20 @@ import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { IncomePulse } from './IncomePulse';
 import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
+import { SelectedPersonSnapshot } from '@/types/ui';
 
 export interface GameUIState {
   money: number;
   totalClicks: number;
   selectedBuildingState: BuildingState | null;
+  selectedPerson: SelectedPersonSnapshot | null;
   isPaused: boolean;
   movingPeopleCount: number;
   occupantsByType: Record<string, number>;
   peopleByRole: Record<PersonRole, number>;
   occupantsByRole: Record<PersonRole, number>;
   reputation: ReputationSnapshot;
+  zoom: number;
 }
 
 export class Game {
@@ -38,6 +41,7 @@ export class Game {
   private money: number = 1000;
   private totalClicks: number = 0;
   private selectedBuilding: Building | null = null;
+  private selectedPerson: SelectedPersonSnapshot | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
 
@@ -82,7 +86,9 @@ export class Game {
       this.app,
       this.worldView.world,
       this.buildingManager,
-      this.spriteResolver
+      this.spriteResolver,
+      this.onPersonSelected,
+      this.onPersonRemoved
     );
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
@@ -138,6 +144,22 @@ export class Game {
     }
   };
 
+  private onPersonSelected = (selection: SelectedPersonSnapshot) => {
+    if (this.selectedBuilding) {
+      this.selectedBuilding.setSelected(false);
+      this.selectedBuilding = null;
+    }
+    this.selectedPerson = selection;
+    this.emitState();
+  };
+
+  private onPersonRemoved = (id: string) => {
+    if (this.selectedPerson?.id === id) {
+      this.selectedPerson = null;
+      this.emitState();
+    }
+  };
+
   private onPointerDown(e: FederatedPointerEvent) {
     if (this.isPaused) return;
 
@@ -154,6 +176,7 @@ export class Game {
 
       if (hitBuilding.type.isRoad) {
         this.deselectBuilding();
+        this.deselectPerson();
         return;
       }
 
@@ -164,6 +187,7 @@ export class Game {
         this.tryPlaceBuilding(e.global);
       } else {
         this.deselectBuilding();
+        this.deselectPerson();
       }
     }
   }
@@ -204,6 +228,7 @@ export class Game {
     if (this.selectedBuilding) this.selectedBuilding.setSelected(false);
     this.selectedBuilding = b;
     b.setSelected(true);
+    this.selectedPerson = null;
     this.emitState();
   }
 
@@ -215,8 +240,18 @@ export class Game {
     this.emitState();
   }
 
+  public deselectPerson() {
+    if (this.selectedPerson) {
+      this.selectedPerson = null;
+      this.emitState();
+    }
+  }
+
   public setDragMode(type: BuildingType | null) {
     this.buildingManager.setDragMode(type);
+    if (type) {
+      this.deselectPerson();
+    }
     this.emitState();
   }
 
@@ -295,12 +330,16 @@ export class Game {
       selectedBuildingState: this.selectedBuilding
         ? { ...this.selectedBuilding.state }
         : null,
+      selectedPerson: this.selectedPerson
+        ? { ...this.selectedPerson }
+        : null,
       isPaused: this.isPaused,
       movingPeopleCount,
       occupantsByType,
       peopleByRole,
       occupantsByRole,
       reputation: this.reputationSystem.snapshot(),
+      zoom: this.worldView.getScale(),
     });
   }
 

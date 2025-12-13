@@ -6,6 +6,7 @@ const cloneVisitor = (base: Visitor): Visitor => ({
   id: `${base.id}_${crypto.randomUUID()}`,
   preferences: { ...base.preferences },
   visuals: base.visuals ? { ...base.visuals } : undefined,
+  identity: base.identity ? { ...base.identity } : undefined,
 });
 
 const cloneWorker = (base: Worker): Worker => ({
@@ -32,6 +33,7 @@ const cloneWorker = (base: Worker): Worker => ({
     visuals: trait.visuals ? { ...trait.visuals } : undefined,
   })),
   needs: base.needs ? { ...base.needs } : undefined,
+  identity: base.identity ? { ...base.identity } : undefined,
 });
 
 export class PersonFactory {
