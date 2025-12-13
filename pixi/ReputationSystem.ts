@@ -32,6 +32,16 @@ export class ReputationSystem {
     const staffCoverage = this.computeStaffCoverage(input.buildings);
     const conditionScore = this.computeConditionScore(input.buildings);
     const movementScore = this.computeMovementPenalty(input.movingPeople);
+    const premiumFriction = clamp(
+      0.4 + (100 - this.state.premium) / 150,
+      0.35,
+      1
+    );
+    const regulationPenalty = clamp(
+      this.state.regulatoryPressure / 80,
+      0,
+      1.15
+    );
 
     const localDelta =
       (occupancyScore - 0.5) * this.driftPerSecond * seconds * 8 +
@@ -39,8 +49,11 @@ export class ReputationSystem {
       movementScore * seconds * this.driftPerSecond;
 
     const premiumDelta =
-      (conditionScore - 0.5) * this.driftPerSecond * seconds * 6 +
-      (staffCoverage - 0.6) * this.driftPerSecond * seconds * 5;
+      ((conditionScore - 0.5) * this.driftPerSecond * seconds * 4.5 +
+        (staffCoverage - 0.6) * this.driftPerSecond * seconds * 3 +
+        (occupancyScore - 0.55) * this.driftPerSecond * seconds * 2) *
+        premiumFriction -
+      regulationPenalty * this.driftPerSecond * seconds * 3.5;
 
     const regulationDelta =
       movementScore * seconds * this.driftPerSecond * 6 -

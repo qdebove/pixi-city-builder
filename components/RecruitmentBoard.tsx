@@ -1,0 +1,210 @@
+import React, { useMemo } from 'react';
+import { JOB_DEFINITIONS, WORKER_ROSTER } from '@/pixi/data/game-model';
+import { ReputationSnapshot } from '@/pixi/ReputationSystem';
+import { PersonRole } from '@/types/types';
+import { Worker } from '@/types/data-contract';
+
+interface RecruitmentBoardProps {
+  reputation: ReputationSnapshot;
+  totalClicks: number;
+  money: number;
+  occupantsByRole: Record<PersonRole, number>;
+}
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
+
+const describeProgression = (totalClicks: number) => {
+  if (totalClicks > 1200) return 'Cité florissante';
+  if (totalClicks > 800) return 'Quartier animé';
+  if (totalClicks > 400) return 'Bloc émergent';
+  return 'Chantier pionnier';
+};
+
+interface CandidateProfile {
+  worker: Worker;
+  baseCost: number;
+  readiness: number;
+  status: string;
+  gate: number;
+  loyaltySignal: string;
+  premiumExpectation: number;
+}
+
+export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
+  reputation,
+  totalClicks,
+  money,
+  occupantsByRole,
+}) => {
+  const staffPressure = Math.max(
+    0,
+    occupantsByRole.visitor - occupantsByRole.staff * 2
+  );
+
+  const candidates = useMemo<CandidateProfile[]>(() => {
+    return WORKER_ROSTER.map((worker) => {
+      const baseCost = 300 + worker.stats.efficiency * 180 + worker.level * 90;
+
+      const progressionGate = 120 + worker.level * 80;
+      const localNeed = 38 + worker.stats.loyalty * 12;
+      const premiumNeed = 35 + worker.stats.versatility * 10;
+
+      const readiness = clamp(
+        (totalClicks / progressionGate) * 0.35 +
+          (reputation.local / localNeed) * 0.3 +
+          (reputation.premium / premiumNeed) * 0.2 +
+          clamp(money / (baseCost * 2.2), 0, 1) * 0.15,
+        0,
+        1.35
+      );
+
+      const status =
+        readiness >= 1
+          ? 'Disponible'
+          : readiness >= 0.65
+          ? 'En pré-contrat'
+          : 'En repérage';
+
+      const loyaltySignal =
+        reputation.regulatoryPressure > 60
+          ? "Vigilante face aux contrôles"
+          : reputation.local > reputation.premium
+          ? 'Recherche un ancrage local'
+          : 'Attirée par la clientèle premium';
+
+      return {
+        worker,
+        baseCost,
+        readiness,
+        status,
+        gate: progressionGate,
+        loyaltySignal,
+        premiumExpectation: premiumNeed,
+      };
+    }).sort((a, b) => b.readiness - a.readiness);
+  }, [money, reputation, totalClicks]);
+
+  const progressionLabel = describeProgression(totalClicks);
+  const staffingHint =
+    staffPressure > 0
+      ? `Priorité : combler ${staffPressure} postes pour absorber les visiteurs.`
+      : "Équipe équilibrée : privilégiez les profils rares ou hybrides.";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-sky-200">Agence de recrutement</h3>
+        <p className="text-sm text-slate-300">
+          Interface façon RPG : chaque candidate arrive avec ses conditions, son
+          arbre de talents actif et un niveau d&apos;affinité qui dépend de votre
+          progression ({progressionLabel}), de la réputation ({reputation.local.toFixed(
+            1
+          )}
+          /{reputation.premium.toFixed(1)}) et des finances actuelles.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+          <p className="text-[11px] uppercase text-slate-400">Budget dédié</p>
+          <p className="text-sm font-semibold text-amber-200">{formatCurrency(money)}</p>
+          <p className="text-[12px] text-slate-400">Capital disponible pour signer les contrats.</p>
+        </div>
+        <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+          <p className="text-[11px] uppercase text-slate-400">Réputation</p>
+          <p className="text-sm text-slate-200">
+            Locale {reputation.local.toFixed(1)} • Premium {reputation.premium.toFixed(1)} • Régulation {reputation.regulatoryPressure.toFixed(1)}
+          </p>
+          <p className="text-[12px] text-slate-400">Impacte les attentes et primes d&apos;arrivée.</p>
+        </div>
+        <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+          <p className="text-[11px] uppercase text-slate-400">Besoins opérationnels</p>
+          <p className="text-sm text-slate-200">{staffingHint}</p>
+          <p className="text-[12px] text-slate-400">Ajuste les recommandations de profils.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {candidates.map((candidate) => {
+          const { worker } = candidate;
+          const job = JOB_DEFINITIONS[worker.jobs.primary];
+          const readinessPercent = Math.round(clamp(candidate.readiness, 0, 1) * 100);
+
+          return (
+            <article
+              key={worker.id}
+              className="flex flex-col gap-3 rounded-lg border border-slate-700 bg-slate-800/60 p-3 shadow-lg"
+            >
+              <header className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
+                  <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
+                  <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                    candidate.status === 'Disponible'
+                      ? 'bg-emerald-700/60 text-emerald-50'
+                      : candidate.status === 'En pré-contrat'
+                      ? 'bg-amber-700/50 text-amber-50'
+                      : 'bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {candidate.status}
+                </span>
+              </header>
+
+              <div className="flex items-center gap-3">
+                <div className="h-2 flex-1 rounded bg-slate-800">
+                  <div
+                    className="h-full rounded bg-sky-400 transition-all"
+                    style={{ width: `${readinessPercent}%` }}
+                  />
+                </div>
+                <span className="text-[12px] text-slate-300">{readinessPercent}% prête</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
+                <div className="rounded border border-slate-700/70 bg-slate-900/60 p-2">
+                  <p className="text-[11px] uppercase text-slate-400">Prime attendue</p>
+                  <p className="font-mono text-amber-200">{formatCurrency(Math.round(candidate.baseCost * clamp(1 + reputation.premium / 180, 1, 1.8)))}</p>
+                </div>
+                <div className="rounded border border-slate-700/70 bg-slate-900/60 p-2">
+                  <p className="text-[11px] uppercase text-slate-400">Palier requis</p>
+                  <p className="font-mono">{Math.round(candidate.gate)} ticks</p>
+                </div>
+                <div className="rounded border border-slate-700/70 bg-slate-900/60 p-2">
+                  <p className="text-[11px] uppercase text-slate-400">Signal</p>
+                  <p className="text-[12px]">{candidate.loyaltySignal}</p>
+                </div>
+                <div className="rounded border border-slate-700/70 bg-slate-900/60 p-2">
+                  <p className="text-[11px] uppercase text-slate-400">Appétit premium</p>
+                  <p className="font-mono">{candidate.premiumExpectation.toFixed(0)}+</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-700/70 bg-slate-900/50 p-2 text-[12px] text-slate-200">
+                <p className="font-semibold text-slate-100">Approche recommandée</p>
+                <p>
+                  {candidate.readiness >= 1
+                    ? 'Signer maintenant : bonus de moral pour toute nouvelle assignation.'
+                    : candidate.readiness >= 0.65
+                    ? "Lancer un pré-entretien et préparer une prime d'accueil."
+                    : 'Monter la réputation locale/premium et consolider le budget avant de la contacter.'}
+                </p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

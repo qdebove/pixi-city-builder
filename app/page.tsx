@@ -108,6 +108,32 @@ const Home: React.FC = () => {
     />
   ) : null;
 
+  const hasDetailPanelOpen = selectionContent !== null;
+  const shouldAutoPause = isMenuOpen || hasDetailPanelOpen;
+
+  const autoPauseRef = useRef(false);
+  const wasPausedBeforeAuto = useRef(false);
+
+  useEffect(() => {
+    if (!gameRef.current) return;
+
+    if (shouldAutoPause) {
+      if (!autoPauseRef.current) {
+        wasPausedBeforeAuto.current = gameState.isPaused;
+        autoPauseRef.current = true;
+      }
+
+      if (!gameState.isPaused) {
+        gameRef.current.pause();
+      }
+    } else if (autoPauseRef.current) {
+      if (!wasPausedBeforeAuto.current && gameState.isPaused) {
+        gameRef.current.resume();
+      }
+      autoPauseRef.current = false;
+    }
+  }, [gameState.isPaused, shouldAutoPause]);
+
   const closeSelection = () => {
     if (gameState.selectedPerson) {
       handleClosePerson();
@@ -252,7 +278,7 @@ const Home: React.FC = () => {
             onClick={() => openMenu('buildings')}
             className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
           >
-            Menu principal
+            Bureau d&apos;urbanisme
           </button>
           <button
             onClick={() => openMenu('skills')}
@@ -349,6 +375,9 @@ const Home: React.FC = () => {
         onClose={() => setIsMenuOpen(false)}
         occupantsByRole={gameState.occupantsByRole}
         movingPeople={gameState.peopleByRole}
+        money={gameState.money}
+        reputation={gameState.reputation}
+        totalClicks={gameState.totalClicks}
       />
     </div>
   );

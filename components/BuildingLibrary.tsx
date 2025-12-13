@@ -23,7 +23,7 @@ export const BuildingLibrary: React.FC = () => {
         </h3>
         <p className="text-sm text-slate-300">
           Retrouvez ici la fiche de chaque type de bâtiment. L&apos;accès se fait
-          depuis le menu principal, indépendamment de la sélection en cours sur
+          depuis le bureau d&apos;urbanisme, indépendamment de la sélection en cours sur
           la carte.
         </p>
       </div>
