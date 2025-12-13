@@ -199,6 +199,24 @@ export class Building extends Container {
     return this.state.occupants.staff < staffCapacity;
   }
 
+  public getCapacityForRole(role: PersonRole): number {
+    return role === 'visitor' ? this.type.capacity : this.getStaffCapacity();
+  }
+
+  public getOccupancyRatioFor(role: PersonRole): number {
+    const capacity = this.getCapacityForRole(role);
+    if (capacity <= 0) return 0;
+
+    const occupants = this.state.occupants[role] ?? 0;
+    return Math.min(1, occupants / capacity);
+  }
+
+  public getAvailableSlotsFor(role: PersonRole): number {
+    const capacity = this.getCapacityForRole(role);
+    const occupants = this.state.occupants[role] ?? 0;
+    return Math.max(0, capacity - occupants);
+  }
+
   public getTotalOccupants(): number {
     return this.computeTotalOccupants(this.state.occupants);
   }
