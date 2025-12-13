@@ -174,11 +174,12 @@ export class PeopleManager {
     const chance = 0.25;
     if (Math.random() > chance) return;
 
-    const available = candidates.filter((b) => b.hasCapacity());
-    if (available.length === 0) return;
-
     const target =
-      available[Math.floor(Math.random() * available.length)];
+      person.role === 'staff'
+        ? this.pickBestBuildingForStaff(candidates)
+        : this.pickRandomBuildingWithVisitorSpace(candidates);
+
+    if (!target) return;
 
     const roadCenter = new Point(road.x, road.y);
     const buildingCenter = new Point(target.x, target.y);
@@ -197,6 +198,31 @@ export class PeopleManager {
   private pickRole(): PersonRole {
     const roll = Math.random();
     return roll < 0.7 ? 'visitor' : 'staff';
+  }
+
+  private pickBestBuildingForStaff(candidates: Building[]): Building | null {
+    const staffedTargets = candidates
+      .filter((b) => b.hasCapacityFor('staff'))
+      .map((b) => ({ building: b, need: b.getStaffNeedScore() }))
+      .filter(({ need }) => need > 0)
+      .sort((a, b) => b.need - a.need);
+
+    if (staffedTargets.length === 0) return null;
+
+    const topNeed = staffedTargets[0].need;
+    const strongestNeeds = staffedTargets.filter((t) => t.need === topNeed);
+    const choice =
+      strongestNeeds[Math.floor(Math.random() * strongestNeeds.length)];
+    return choice.building;
+  }
+
+  private pickRandomBuildingWithVisitorSpace(
+    candidates: Building[]
+  ): Building | null {
+    const available = candidates.filter((b) => b.hasCapacityFor('visitor'));
+    if (available.length === 0) return null;
+
+    return available[Math.floor(Math.random() * available.length)];
   }
 
   public getPeopleCountByRole(): Record<PersonRole, number> {

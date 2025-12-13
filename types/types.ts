@@ -9,6 +9,8 @@ export interface BuildingType {
   autoClickerMaxLevel: number;
   baseHealth: number;
   capacity: number;
+  staffCapacity: number;
+  staffEfficiency: number;
   isRoad?: boolean;
   category: 'housing' | 'commerce' | 'industry' | 'infrastructure';
   baseIntervalMs: number; // ✅ périodicité de base, propre à chaque type
@@ -44,6 +46,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 5,
     baseHealth: 100,
     capacity: 2,
+    staffCapacity: 0,
+    staffEfficiency: 0,
     category: 'housing',
     baseIntervalMs: 2500, // 2,5s
   },
@@ -58,6 +62,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 7,
     baseHealth: 250,
     capacity: 5,
+    staffCapacity: 2,
+    staffEfficiency: 0.35,
     category: 'commerce',
     baseIntervalMs: 2000, // 2s
   },
@@ -72,6 +78,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 10,
     baseHealth: 500,
     capacity: 10,
+    staffCapacity: 4,
+    staffEfficiency: 0.5,
     category: 'industry',
     baseIntervalMs: 1500, // 1,5s
   },
@@ -86,6 +94,8 @@ export const BUILDING_TYPES: BuildingType[] = [
     autoClickerMaxLevel: 0,
     baseHealth: 9999,
     capacity: 0,
+    staffCapacity: 0,
+    staffEfficiency: 0,
     isRoad: true,
     category: 'infrastructure',
     baseIntervalMs: 0,
