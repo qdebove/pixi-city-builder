@@ -27,6 +27,9 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const isMaxLevel = state.level >= type.maxLevel;
   const canAffordUpgrade = money >= upgradeCost;
 
+  const visitorCount = state.occupants.visitor || 0;
+  const staffCount = state.occupants.staff || 0;
+
   const isAutoMax =
     state.autoClickerLevel >= type.autoClickerMaxLevel;
   const autoClickerCost = calculateAutoClickerUpgradeCost(
@@ -67,6 +70,18 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
           👤 Occupants :{' '}
           <span className="font-mono">
             {state.currentOccupants} / {type.capacity}
+          </span>
+        </p>
+        <p className="text-[12px] text-slate-400 col-span-2 flex gap-4">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-full bg-pink-300" />
+            Visiteurs :
+            <span className="font-mono text-slate-100">{visitorCount}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-full bg-sky-300" />
+            Personnel :
+            <span className="font-mono text-slate-100">{staffCount}</span>
           </span>
         </p>
 

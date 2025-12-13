@@ -14,12 +14,15 @@ export interface BuildingType {
   baseIntervalMs: number; // ✅ périodicité de base, propre à chaque type
 }
 
+export type PersonRole = 'visitor' | 'staff';
+
 export interface BuildingState {
   instanceId: string;
   typeId: string;
   level: number;
   currentHealth: number;
   currentOccupants: number;
+  occupants: Record<PersonRole, number>;
   isAutoClickerUnlocked: boolean;
   isAutoClickerActive: boolean;
   autoClickerInterval: number;

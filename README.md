@@ -475,7 +475,7 @@ Le code doit rester :
 
 ### ⏳ En cours / prochaines étapes priorisées
 
-* [ ] Différenciation claire **visiteurs / personnel**
+* [x] Différenciation claire **visiteurs / personnel**
 * [ ] Système d’assignation intelligente du personnel aux bâtiments
 * [ ] Implémentation complète du **modèle de données** (ville, passifs, workers, visitors, skills, traits)
 * [ ] Moteur de simulation par tick (temps logique unifié)

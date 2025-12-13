@@ -1,4 +1,12 @@
-import { Application, Container, Graphics, Point, Ticker } from 'pixi.js';
+import {
+  Application,
+  Container,
+  Graphics,
+  IDestroyOptions,
+  Point,
+  Ticker,
+} from 'pixi.js';
+import { PersonRole } from '../types/types';
 
 type FinishCallback = () => void;
 
@@ -10,15 +18,23 @@ export class Person extends Container {
   private speed = 60; // px/s
   private paused = false;
   private onFinished: FinishCallback | null = null;
+  public readonly role: PersonRole;
 
-  constructor(app: Application, path: Point[], onFinished?: FinishCallback) {
+  constructor(
+    app: Application,
+    path: Point[],
+    role: PersonRole,
+    onFinished?: FinishCallback
+  ) {
     super();
     this.app = app;
     this.path = this.normalizePath(path);
+    this.role = role;
     this.onFinished = onFinished || null;
 
     const g = new Graphics();
-    g.circle(0, 0, 6).fill(0xf9a8d4).stroke({ width: 2, color: 0x1f2933 });
+    const color = role === 'visitor' ? 0xf9a8d4 : 0x38bdf8;
+    g.circle(0, 0, 6).fill(color).stroke({ width: 2, color: 0x1f2933 });
     this.addChild(g);
 
     if (this.path.length > 0) {
@@ -134,7 +150,7 @@ export class Person extends Container {
     }
   }
 
-  public destroy(options?: any) {
+  public destroy(options?: boolean | IDestroyOptions) {
     this.app.ticker.remove(this.update, this);
     super.destroy(options);
   }

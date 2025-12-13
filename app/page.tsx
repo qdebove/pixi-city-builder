@@ -21,6 +21,8 @@ const Home: React.FC = () => {
     isPaused: false,
     movingPeopleCount: 0,
     occupantsByType: {},
+    peopleByRole: { visitor: 0, staff: 0 },
+    occupantsByRole: { visitor: 0, staff: 0 },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -128,11 +130,24 @@ const Home: React.FC = () => {
 
           <div className="flex flex-col">
             <span className="text-[10px] uppercase text-slate-400">
-              Personnes en déplacement
+              Flux en déplacement
             </span>
-            <span className="font-mono text-sky-300">
-              {gameState.movingPeopleCount}
-            </span>
+            <div className="flex gap-3 text-[13px]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-pink-300" />
+                <span className="font-mono text-pink-200">
+                  {gameState.peopleByRole.visitor}
+                </span>
+                <span className="text-slate-400 text-[11px]">visiteurs</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-sky-300" />
+                <span className="font-mono text-sky-200">
+                  {gameState.peopleByRole.staff}
+                </span>
+                <span className="text-slate-400 text-[11px]">personnel</span>
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1 text-xs">
@@ -160,6 +175,28 @@ const Home: React.FC = () => {
                   </div>
                 )
               )}
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">
+              Répartition globale
+            </span>
+            <div className="flex gap-3 text-[13px]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-pink-300" />
+                <span className="font-mono text-pink-200">
+                  {gameState.occupantsByRole.visitor}
+                </span>
+                <span className="text-slate-400 text-[11px]">visiteurs hébergés</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-sky-300" />
+                <span className="font-mono text-sky-200">
+                  {gameState.occupantsByRole.staff}
+                </span>
+                <span className="text-slate-400 text-[11px]">personnel en poste</span>
+              </span>
             </div>
           </div>
         </div>

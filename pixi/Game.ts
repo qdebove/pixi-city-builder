@@ -1,7 +1,8 @@
-import { Application, FederatedPointerEvent, Point, Ticker } from 'pixi.js';
+import { Application, FederatedPointerEvent, Point } from 'pixi.js';
 import {
   BuildingState,
   BuildingType,
+  PersonRole,
   calculateAutoClickerUpgradeCost,
   calculateUpgradeCost,
 } from '../types/types';
@@ -18,6 +19,8 @@ export interface GameUIState {
   isPaused: boolean;
   movingPeopleCount: number;
   occupantsByType: Record<string, number>;
+  peopleByRole: Record<PersonRole, number>;
+  occupantsByRole: Record<PersonRole, number>;
 }
 
 export class Game {
@@ -71,7 +74,7 @@ export class Game {
     this.emitState();
   }
 
-  private update = (ticker: Ticker) => {
+  private update = () => {
     const now = performance.now();
     if (this.isPaused) return;
 
@@ -256,19 +259,28 @@ export class Game {
 
   private computeGlobalStats() {
     const occupantsByType: Record<string, number> = {};
+    const occupantsByRole: Record<PersonRole, number> = {
+      visitor: 0,
+      staff: 0,
+    };
     this.buildingManager.getBuildings().forEach((b) => {
       const typeId = b.type.id;
-      occupantsByType[typeId] =
-        (occupantsByType[typeId] || 0) + b.state.currentOccupants;
+      const total = b.getTotalOccupants();
+      occupantsByType[typeId] = (occupantsByType[typeId] || 0) + total;
+
+      const byRole = b.getOccupantsByRole();
+      occupantsByRole.visitor += byRole.visitor || 0;
+      occupantsByRole.staff += byRole.staff || 0;
     });
 
     const movingPeopleCount = this.peopleManager.getPeopleCount();
+    const peopleByRole = this.peopleManager.getPeopleCountByRole();
 
-    return { occupantsByType, movingPeopleCount };
+    return { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole };
   }
 
   private emitState() {
-    const { occupantsByType, movingPeopleCount } =
+    const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
 
     this.onStateChange({
@@ -280,6 +292,8 @@ export class Game {
       isPaused: this.isPaused,
       movingPeopleCount,
       occupantsByType,
+      peopleByRole,
+      occupantsByRole,
     });
   }
 

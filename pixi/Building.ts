@@ -1,7 +1,8 @@
-import { Container, Graphics, Point, Ticker } from 'pixi.js';
+import { Container, Graphics, IDestroyOptions, Point, Ticker } from 'pixi.js';
 import {
   BuildingState,
   BuildingType,
+  PersonRole,
   calculateIncome,
   CELL_SIZE,
 } from '../types/types';
@@ -28,6 +29,7 @@ export class Building extends Container {
       level: 1,
       currentHealth: type.baseHealth,
       currentOccupants: 0,
+      occupants: { visitor: 0, staff: 0 },
       isAutoClickerUnlocked: true,
       isAutoClickerActive: true,
       autoClickerInterval: type.baseIntervalMs || 2000, // ✅ propre à chaque type
@@ -86,6 +88,7 @@ export class Building extends Container {
 
   public updateState(newState: Partial<BuildingState>) {
     this.state = { ...this.state, ...newState };
+    this.state.currentOccupants = this.getTotalOccupants();
     this.drawVisual();
   }
 
@@ -98,11 +101,42 @@ export class Building extends Container {
     const base = calculateIncome(this.type, this.state.level);
     if (this.type.capacity <= 0) return base;
 
-    const ratio = Math.min(
-      1,
-      this.state.currentOccupants / this.type.capacity
-    );
+    const ratio = Math.min(1, this.getTotalOccupants() / this.type.capacity);
     return Math.floor(base * (1 + ratio));
+  }
+
+  public addOccupant(role: PersonRole) {
+    const nextOccupants = {
+      ...this.state.occupants,
+      [role]: (this.state.occupants[role] || 0) + 1,
+    } as Record<PersonRole, number>;
+
+    this.state = {
+      ...this.state,
+      occupants: nextOccupants,
+      currentOccupants: this.computeTotalOccupants(nextOccupants),
+    };
+
+    this.drawVisual();
+  }
+
+  public getOccupantsByRole(): Record<PersonRole, number> {
+    return { ...this.state.occupants };
+  }
+
+  public hasCapacity(): boolean {
+    if (this.type.capacity <= 0) return false;
+    return this.getTotalOccupants() < this.type.capacity;
+  }
+
+  public getTotalOccupants(): number {
+    return this.computeTotalOccupants(this.state.occupants);
+  }
+
+  private computeTotalOccupants(
+    occupants: Record<PersonRole, number>
+  ): number {
+    return (occupants.visitor || 0) + (occupants.staff || 0);
   }
 
   public getCenterGlobalPosition(): Point {
@@ -113,11 +147,11 @@ export class Building extends Container {
     // plus de rebond pour la production passive
   }
 
-  private updateAnim(ticker: Ticker) {
+  private updateAnim() {
     // laissé vide pour de futures animations éventuelles
   }
 
-  public destroy(options?: any) {
+  public destroy(options?: boolean | IDestroyOptions) {
     Ticker.shared.remove(this.updateAnim, this);
     super.destroy(options);
   }
