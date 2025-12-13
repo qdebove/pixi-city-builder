@@ -11,17 +11,21 @@ import { SimulationClock, TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { IncomePulse } from './IncomePulse';
+import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
+import { SelectedPersonSnapshot } from '@/types/ui';
 
 export interface GameUIState {
   money: number;
   totalClicks: number;
   selectedBuildingState: BuildingState | null;
+  selectedPerson: SelectedPersonSnapshot | null;
   isPaused: boolean;
   movingPeopleCount: number;
   occupantsByType: Record<string, number>;
   peopleByRole: Record<PersonRole, number>;
   occupantsByRole: Record<PersonRole, number>;
   reputation: ReputationSnapshot;
+  zoom: number;
 }
 
 export class Game {
@@ -32,10 +36,12 @@ export class Game {
   private simulation: SimulationClock;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
+  private skillEngine: SkillEngine;
 
   private money: number = 1000;
   private totalClicks: number = 0;
   private selectedBuilding: Building | null = null;
+  private selectedPerson: SelectedPersonSnapshot | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
 
@@ -50,6 +56,7 @@ export class Game {
     this.onStateChange = onStateChange;
     this.spriteResolver = new SpriteResolver(BASE_ASSET_REGISTRY);
     this.reputationSystem = new ReputationSystem();
+    this.skillEngine = new SkillEngine();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -79,7 +86,9 @@ export class Game {
       this.app,
       this.worldView.world,
       this.buildingManager,
-      this.spriteResolver
+      this.spriteResolver,
+      this.onPersonSelected,
+      this.onPersonRemoved
     );
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
@@ -107,9 +116,17 @@ export class Game {
 
   private onSimulationTick = (ctx: TickContext) => {
     this.buildingManager.getBuildings().forEach((building) => {
+      const skillSnapshot = building.type.isRoad
+        ? null
+        : this.skillEngine.computeBuildingSnapshot(building, ctx.tick);
+
+      if (skillSnapshot && !building.type.isRoad) {
+        building.updateState({ productionIntervalMs: skillSnapshot.intervalMs });
+      }
+
       const completedCycles = building.accumulateIncomeProgress(ctx.deltaMs);
       for (let i = 0; i < completedCycles; i++) {
-        this.harvestBuilding(building);
+        this.harvestBuilding(building, skillSnapshot ?? undefined);
       }
     });
 
@@ -123,6 +140,22 @@ export class Game {
 
     if (ctx.nowMs - this.lastStatsUpdate > 250) {
       this.lastStatsUpdate = ctx.nowMs;
+      this.emitState();
+    }
+  };
+
+  private onPersonSelected = (selection: SelectedPersonSnapshot) => {
+    if (this.selectedBuilding) {
+      this.selectedBuilding.setSelected(false);
+      this.selectedBuilding = null;
+    }
+    this.selectedPerson = selection;
+    this.emitState();
+  };
+
+  private onPersonRemoved = (id: string) => {
+    if (this.selectedPerson?.id === id) {
+      this.selectedPerson = null;
       this.emitState();
     }
   };
@@ -143,6 +176,7 @@ export class Game {
 
       if (hitBuilding.type.isRoad) {
         this.deselectBuilding();
+        this.deselectPerson();
         return;
       }
 
@@ -153,6 +187,7 @@ export class Game {
         this.tryPlaceBuilding(e.global);
       } else {
         this.deselectBuilding();
+        this.deselectPerson();
       }
     }
   }
@@ -172,8 +207,11 @@ export class Game {
     }
   }
 
-  public harvestBuilding(building: Building) {
-    const income = building.getIncome();
+  public harvestBuilding(
+    building: Building,
+    skillSnapshot?: BuildingSkillSnapshot
+  ) {
+    const income = skillSnapshot?.incomePerTick ?? building.getIncome();
     if (income <= 0) return;
 
     this.money += income;
@@ -190,6 +228,7 @@ export class Game {
     if (this.selectedBuilding) this.selectedBuilding.setSelected(false);
     this.selectedBuilding = b;
     b.setSelected(true);
+    this.selectedPerson = null;
     this.emitState();
   }
 
@@ -201,8 +240,18 @@ export class Game {
     this.emitState();
   }
 
+  public deselectPerson() {
+    if (this.selectedPerson) {
+      this.selectedPerson = null;
+      this.emitState();
+    }
+  }
+
   public setDragMode(type: BuildingType | null) {
     this.buildingManager.setDragMode(type);
+    if (type) {
+      this.deselectPerson();
+    }
     this.emitState();
   }
 
@@ -281,12 +330,16 @@ export class Game {
       selectedBuildingState: this.selectedBuilding
         ? { ...this.selectedBuilding.state }
         : null,
+      selectedPerson: this.selectedPerson
+        ? { ...this.selectedPerson }
+        : null,
       isPaused: this.isPaused,
       movingPeopleCount,
       occupantsByType,
       peopleByRole,
       occupantsByRole,
       reputation: this.reputationSystem.snapshot(),
+      zoom: this.worldView.getScale(),
     });
   }
 

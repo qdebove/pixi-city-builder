@@ -6,6 +6,7 @@ const cloneVisitor = (base: Visitor): Visitor => ({
   id: `${base.id}_${crypto.randomUUID()}`,
   preferences: { ...base.preferences },
   visuals: base.visuals ? { ...base.visuals } : undefined,
+  identity: base.identity ? { ...base.identity } : undefined,
 });
 
 const cloneWorker = (base: Worker): Worker => ({
@@ -18,12 +19,21 @@ const cloneWorker = (base: Worker): Worker => ({
     morale: { ...base.resources.morale },
   },
   jobs: { primary: base.jobs.primary, secondary: [...base.jobs.secondary] },
-  skillTrees: { ...base.skillTrees },
+  skillTrees: Object.entries(base.skillTrees).reduce<Worker['skillTrees']>(
+    (acc, [treeId, progress]) => {
+      acc[treeId] = {
+        unlockedNodes: { ...progress.unlockedNodes },
+      };
+      return acc;
+    },
+    {}
+  ),
   traits: base.traits.map((trait) => ({
     ...trait,
     visuals: trait.visuals ? { ...trait.visuals } : undefined,
   })),
   needs: base.needs ? { ...base.needs } : undefined,
+  identity: base.identity ? { ...base.identity } : undefined,
 });
 
 export class PersonFactory {

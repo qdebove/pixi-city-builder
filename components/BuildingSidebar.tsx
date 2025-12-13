@@ -58,6 +58,23 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
         </span>
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => onOpenMenu('buildings')}
+          className="rounded-lg bg-slate-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-slate-600 transition"
+        >
+          Bibliothèque
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenMenu('skills')}
+          className="rounded-lg bg-violet-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-violet-600 transition"
+        >
+          Compétences
+        </button>
+      </div>
+
       <label className="flex items-center gap-2 text-xs mb-4">
         <input
           type="checkbox"

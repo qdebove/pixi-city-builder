@@ -1,4 +1,5 @@
 import { Container, Graphics, IDestroyOptions, Point, Ticker } from 'pixi.js';
+import { PassiveInstance, Visitor, Worker } from '../types/data-contract';
 import {
   BuildingState,
   BuildingType,
@@ -6,6 +7,7 @@ import {
   calculateIncome,
   CELL_SIZE,
 } from '../types/types';
+import { BUILDING_PASSIVES_BY_TYPE } from './data/game-model';
 
 export class Building extends Container {
   public gridX: number;
@@ -13,6 +15,10 @@ export class Building extends Container {
   public type: BuildingType;
   public state: BuildingState;
   private incomeProgressMs = 0;
+
+  private readonly unlockedPassives: PassiveInstance[];
+  private staffMembers: Worker[] = [];
+  private visitors: Visitor[] = [];
 
   private visual: Graphics;
   private selectionRing: Graphics;
@@ -22,6 +28,8 @@ export class Building extends Container {
     this.gridX = gx;
     this.gridY = gy;
     this.type = type;
+
+    this.unlockedPassives = BUILDING_PASSIVES_BY_TYPE[type.id] ?? [];
 
     this.state = {
       instanceId: crypto.randomUUID(),
@@ -54,6 +62,50 @@ export class Building extends Container {
     });
 
     Ticker.shared.add(this.updateAnim, this);
+  }
+
+  public getUnlockedPassives(): PassiveInstance[] {
+    return [...this.unlockedPassives];
+  }
+
+  public getStaffMembers(): Worker[] {
+    return [...this.staffMembers];
+  }
+
+  public getVisitors(): Visitor[] {
+    return [...this.visitors];
+  }
+
+  public getBaseIncome(): number {
+    return calculateIncome(this.type, this.state.level);
+  }
+
+  public getBaseIntervalMs(): number {
+    return this.type.baseIntervalMs || this.state.productionIntervalMs;
+  }
+
+  public getIncomeWithoutPassives(): number {
+    const base = this.getBaseIncome();
+    return Math.floor(base * this.getOccupancyMultiplier());
+  }
+
+  private getOccupancyMultiplier(): number {
+    if (this.type.capacity <= 0 && this.type.staffCapacity <= 0) return 1;
+
+    const visitorCount = this.state.occupants.visitor || 0;
+    const staffCount = this.state.occupants.staff || 0;
+
+    const visitorRatio =
+      this.type.capacity > 0
+        ? Math.min(1, visitorCount / this.type.capacity)
+        : 0;
+
+    const staffCapacity = this.getStaffCapacity();
+    const staffRatio =
+      staffCapacity > 0 ? Math.min(1, staffCount / staffCapacity) : 0;
+    const staffBoost = 1 + staffRatio * this.type.staffEfficiency;
+
+    return (1 + visitorRatio) * staffBoost;
   }
 
   private drawVisual() {
@@ -103,26 +155,13 @@ export class Building extends Container {
   }
 
   public getIncome(): number {
-    const base = calculateIncome(this.type, this.state.level);
-    if (this.type.capacity <= 0 && this.type.staffCapacity <= 0) return base;
-
-    const visitorRatio =
-      this.type.capacity > 0
-        ? Math.min(1, this.state.occupants.visitor / this.type.capacity)
-        : 0;
-
-    const staffCapacity = this.getStaffCapacity();
-    const staffRatio =
-      staffCapacity > 0
-        ? Math.min(1, this.state.occupants.staff / staffCapacity)
-        : 0;
-    const staffBoost = 1 + staffRatio * this.type.staffEfficiency;
-
-    return Math.floor(base * (1 + visitorRatio) * staffBoost);
+    return this.getIncomeWithoutPassives();
   }
 
-  public addOccupant(role: PersonRole) {
+  public addOccupant(role: PersonRole, profile?: Worker | Visitor) {
     if (!this.hasCapacityFor(role)) return;
+
+    this.rememberProfile(role, profile);
 
     const nextOccupants = {
       ...this.state.occupants,
@@ -176,6 +215,18 @@ export class Building extends Container {
     if (missing <= 0) return 0;
 
     return missing / cap;
+  }
+
+  private rememberProfile(role: PersonRole, profile?: Worker | Visitor) {
+    if (!profile) return;
+
+    if (role === 'staff' && 'jobs' in profile) {
+      this.staffMembers.push(profile as Worker);
+    }
+
+    if (role === 'visitor' && 'preferences' in profile) {
+      this.visitors.push(profile as Visitor);
+    }
   }
 
   private computeTotalOccupants(

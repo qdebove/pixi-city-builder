@@ -7,6 +7,7 @@ import {
   Sprite,
   Texture,
   Ticker,
+  FederatedPointerEvent,
 } from 'pixi.js';
 import { SpriteVariant, Visitor, Worker } from '../types/data-contract';
 import { PersonRole } from '../types/types';
@@ -15,6 +16,11 @@ import { SpriteResolver } from './assets/SpriteResolver';
 type PersonProfile = Visitor | Worker;
 
 type FinishCallback = () => void;
+
+type PersonOptions = {
+  onFinished?: FinishCallback;
+  onSelected?: (person: Person) => void;
+};
 
 export class Person extends Container {
   private app: Application;
@@ -31,6 +37,7 @@ export class Person extends Container {
   private readonly profile: PersonProfile;
 
   private visual: Sprite | Graphics;
+  private readonly onSelected?: (person: Person) => void;
 
   constructor(
     app: Application,
@@ -38,7 +45,7 @@ export class Person extends Container {
     role: PersonRole,
     profile: PersonProfile,
     spriteResolver: SpriteResolver,
-    onFinished?: FinishCallback
+    options?: PersonOptions
   ) {
     super();
     this.app = app;
@@ -47,7 +54,8 @@ export class Person extends Container {
     this.profile = profile;
     this.spriteResolver = spriteResolver;
     this.id = crypto.randomUUID();
-    this.onFinished = onFinished || null;
+    this.onFinished = options?.onFinished || null;
+    this.onSelected = options?.onSelected;
 
     const fallbackVisual = new Graphics();
     const color = role === 'visitor' ? 0xf9a8d4 : 0x38bdf8;
@@ -64,6 +72,9 @@ export class Person extends Container {
     }
 
     this.app.ticker.add(this.update, this);
+    this.eventMode = 'static';
+    this.cursor = 'pointer';
+    this.on('pointerdown', this.handlePointerDown);
   }
 
   public setPaused(paused: boolean) {
@@ -84,6 +95,14 @@ export class Person extends Container {
     if (onFinished) {
       this.onFinished = onFinished;
     }
+  }
+
+  public getProfile(): PersonProfile {
+    return this.profile;
+  }
+
+  public getId(): string {
+    return this.id;
   }
 
   /**
@@ -162,6 +181,13 @@ export class Person extends Container {
     this.addChild(sprite);
   }
 
+  private handlePointerDown = (e: FederatedPointerEvent) => {
+    e.stopPropagation();
+    if (this.onSelected) {
+      this.onSelected(this);
+    }
+  };
+
   private update(ticker: Ticker) {
     if (this.paused) return;
     if (this.path.length < 2) return;
@@ -216,6 +242,7 @@ export class Person extends Container {
 
   public destroy(options?: boolean | IDestroyOptions) {
     this.app.ticker.remove(this.update, this);
+    this.off('pointerdown', this.handlePointerDown);
     super.destroy(options);
   }
 }
