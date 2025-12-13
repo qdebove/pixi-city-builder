@@ -94,10 +94,10 @@ export class Game {
   }
 
   private async preloadAssets() {
-    const assets = Object.values(BASE_ASSET_REGISTRY.assets);
+    const assets: any[] = Object.values(BASE_ASSET_REGISTRY.assets);
 
     assets.forEach((asset) => {
-      if (!Assets.exists(asset.id)) {
+      if (!Assets.get(asset.id)) {
         Assets.add({ alias: asset.id, src: asset.uri });
       }
     });

@@ -29,6 +29,7 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
   totalClicks,
   onSelect,
   draggingMode,
+  onOpenMenu
 }) => {
   const [showAffordableOnly, setShowAffordableOnly] = useState(false);
 
