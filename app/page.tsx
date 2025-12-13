@@ -97,8 +97,6 @@ const Home: React.FC = () => {
 
   const handleUpgrade = () =>
     gameRef.current?.upgradeSelectedBuilding();
-  const handleUpgradeAutoClicker = () =>
-    gameRef.current?.upgradeAutoClickerSpeed();
 
   const handlePause = () => gameRef.current?.pause();
   const handleResume = () => gameRef.current?.resume();
@@ -343,7 +341,6 @@ const Home: React.FC = () => {
                   state={gameState.selectedBuildingState}
                   money={gameState.money}
                   onUpgrade={handleUpgrade}
-                  onUpgradeAutoClicker={handleUpgradeAutoClicker}
                 />
               </div>
             </div>
