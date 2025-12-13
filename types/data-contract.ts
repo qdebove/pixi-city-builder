@@ -518,7 +518,7 @@ export interface SkillProc {
   id: ID;
   trigger: SkillTrigger;
   conditions?: Condition;
-  proc?: ProcSpec;
+  spec?: ProcSpec;
   effects: PassiveEffect[];
 
   /** Optional: link to visuals for VFX/icon, etc */

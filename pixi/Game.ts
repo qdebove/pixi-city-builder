@@ -11,6 +11,7 @@ import { SimulationClock, TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { IncomePulse } from './IncomePulse';
+import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
 
 export interface GameUIState {
   money: number;
@@ -32,6 +33,7 @@ export class Game {
   private simulation: SimulationClock;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
+  private skillEngine: SkillEngine;
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -50,6 +52,7 @@ export class Game {
     this.onStateChange = onStateChange;
     this.spriteResolver = new SpriteResolver(BASE_ASSET_REGISTRY);
     this.reputationSystem = new ReputationSystem();
+    this.skillEngine = new SkillEngine();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -107,9 +110,17 @@ export class Game {
 
   private onSimulationTick = (ctx: TickContext) => {
     this.buildingManager.getBuildings().forEach((building) => {
+      const skillSnapshot = building.type.isRoad
+        ? null
+        : this.skillEngine.computeBuildingSnapshot(building, ctx.tick);
+
+      if (skillSnapshot && !building.type.isRoad) {
+        building.updateState({ productionIntervalMs: skillSnapshot.intervalMs });
+      }
+
       const completedCycles = building.accumulateIncomeProgress(ctx.deltaMs);
       for (let i = 0; i < completedCycles; i++) {
-        this.harvestBuilding(building);
+        this.harvestBuilding(building, skillSnapshot ?? undefined);
       }
     });
 
@@ -172,8 +183,11 @@ export class Game {
     }
   }
 
-  public harvestBuilding(building: Building) {
-    const income = building.getIncome();
+  public harvestBuilding(
+    building: Building,
+    skillSnapshot?: BuildingSkillSnapshot
+  ) {
+    const income = skillSnapshot?.incomePerTick ?? building.getIncome();
     if (income <= 0) return;
 
     this.money += income;

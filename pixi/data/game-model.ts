@@ -24,8 +24,8 @@ const createOccupants = (visitorsInside: number, workersInside: number): Buildin
 const basePassiveEffects: Record<string, PassiveEffect> = {
   comfortBoost: {
     target: 'building',
-    stat: 'comfort',
-    value: 0.1,
+    stat: 'income',
+    value: 8,
     mode: 'additive',
   },
   premiumPull: {
@@ -36,9 +36,21 @@ const basePassiveEffects: Record<string, PassiveEffect> = {
   },
   upkeepSaver: {
     target: 'building',
-    stat: 'upkeep',
-    value: -0.08,
+    stat: 'interval',
+    value: -150,
     mode: 'additive',
+  },
+  vipUpsell: {
+    target: 'building',
+    stat: 'income',
+    value: 0.12,
+    mode: 'multiplicative',
+  },
+  workerSynergy: {
+    target: 'worker',
+    stat: 'efficiency',
+    value: 0.06,
+    mode: 'multiplicative',
   },
 };
 
@@ -51,12 +63,29 @@ export const PASSIVE_DEFINITIONS: Record<string, PassiveDefinition> = {
   vipAmbassador: {
     id: 'vipAmbassador',
     descriptionKey: 'passive.vipAmbassador',
-    effects: [basePassiveEffects.premiumPull],
+    effects: [basePassiveEffects.vipUpsell],
   },
   leanOps: {
     id: 'leanOps',
     descriptionKey: 'passive.leanOps',
     effects: [basePassiveEffects.upkeepSaver],
+  },
+  synergyTraining: {
+    id: 'synergyTraining',
+    descriptionKey: 'passive.synergyTraining',
+    effects: [basePassiveEffects.workerSynergy],
+  },
+  fastTrack: {
+    id: 'fastTrack',
+    descriptionKey: 'passive.fastTrack',
+    effects: [
+      {
+        target: 'building',
+        stat: 'interval',
+        value: -220,
+        mode: 'additive',
+      },
+    ],
   },
 };
 
@@ -128,6 +157,21 @@ const conciergeNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_welcome' },
       tags: ['concierge'],
     },
+    procs: [
+      {
+        id: 'welcomeCharm_proc',
+        trigger: 'onIncomeTick',
+        spec: { chance: 0.35, cooldownTicks: 2 },
+        effects: [
+          {
+            target: 'building',
+            stat: 'income',
+            value: 6,
+            mode: 'additive',
+          },
+        ],
+      },
+    ],
   },
   vipHandler: {
     id: 'vipHandler',
@@ -146,6 +190,21 @@ const conciergeNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_vip' },
       tags: ['premium'],
     },
+    procs: [
+      {
+        id: 'vipHandler_proc',
+        trigger: 'onVisitorConsume',
+        spec: { chance: 0.25, cooldownTicks: 4 },
+        effects: [
+          {
+            target: 'building',
+            stat: 'income',
+            value: 0.08,
+            mode: 'multiplicative',
+          },
+        ],
+      },
+    ],
   },
 };
 
@@ -167,6 +226,21 @@ const technicianNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_toolkit' },
       tags: ['maintenance'],
     },
+    procs: [
+      {
+        id: 'quickFix_proc',
+        trigger: 'onIncomeTick',
+        spec: { chance: 0.3, cooldownTicks: 3 },
+        effects: [
+          {
+            target: 'building',
+            stat: 'interval',
+            value: -120,
+            mode: 'additive',
+          },
+        ],
+      },
+    ],
   },
   riskMonitor: {
     id: 'riskMonitor',
@@ -213,6 +287,17 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     allowedWorkerRoles: ['concierge'],
     passiveUnlocks: [PASSIVE_DEFINITIONS.hospitalityTraining],
   },
+  house: {
+    id: 'house',
+    category: 'hotel',
+    baseCost: 120,
+    baseVisitorCapacity: 2,
+    workerSlots: 0,
+    basePassiveIncome: 12,
+    baseIncomeInterval: 2500,
+    allowedWorkerRoles: [],
+    passiveUnlocks: [PASSIVE_DEFINITIONS.hospitalityTraining],
+  },
   restaurant: {
     id: 'restaurant',
     category: 'restaurant',
@@ -223,6 +308,17 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     baseIncomeInterval: 2200,
     allowedWorkerRoles: ['concierge', 'technician'],
     passiveUnlocks: [PASSIVE_DEFINITIONS.leanOps],
+  },
+  shop: {
+    id: 'shop',
+    category: 'restaurant',
+    baseCost: 480,
+    baseVisitorCapacity: 5,
+    workerSlots: 2,
+    basePassiveIncome: 60,
+    baseIncomeInterval: 2000,
+    allowedWorkerRoles: ['concierge', 'technician'],
+    passiveUnlocks: [PASSIVE_DEFINITIONS.fastTrack],
   },
   casino: {
     id: 'casino',
@@ -235,6 +331,26 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     allowedWorkerRoles: ['concierge', 'technician'],
     passiveUnlocks: [PASSIVE_DEFINITIONS.vipAmbassador],
   },
+  factory: {
+    id: 'factory',
+    category: 'casino',
+    baseCost: 1250,
+    baseVisitorCapacity: 10,
+    workerSlots: 4,
+    basePassiveIncome: 150,
+    baseIncomeInterval: 1500,
+    allowedWorkerRoles: ['technician'],
+    passiveUnlocks: [PASSIVE_DEFINITIONS.synergyTraining],
+  },
+};
+
+export const BUILDING_PASSIVES_BY_TYPE: Record<string, PassiveInstance[]> = {
+  house: [{ passiveId: 'hospitalityTraining', level: 1 }],
+  shop: [
+    { passiveId: 'fastTrack', level: 1 },
+    { passiveId: 'synergyTraining', level: 1 },
+  ],
+  factory: [{ passiveId: 'vipAmbassador', level: 1 }],
 };
 
 const defaultBuildingInstance = (
@@ -313,7 +429,14 @@ const workerTemplate = (
   },
   jobs: { primary: job, secondary: [] },
   skillTrees: {
-    [JOB_DEFINITIONS[job].skillTreeId]: { unlockedNodes: {} },
+    [JOB_DEFINITIONS[job].skillTreeId]: {
+      unlockedNodes: (() => {
+        const treeId = JOB_DEFINITIONS[job].skillTreeId;
+        const starter = Object.values(SKILL_TREES[treeId]?.nodes ?? {})[0];
+        if (!starter) return {};
+        return { [starter.id]: 1 };
+      })(),
+    },
   },
   traits,
 });

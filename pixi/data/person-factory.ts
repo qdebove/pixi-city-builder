@@ -18,7 +18,15 @@ const cloneWorker = (base: Worker): Worker => ({
     morale: { ...base.resources.morale },
   },
   jobs: { primary: base.jobs.primary, secondary: [...base.jobs.secondary] },
-  skillTrees: { ...base.skillTrees },
+  skillTrees: Object.entries(base.skillTrees).reduce<Worker['skillTrees']>(
+    (acc, [treeId, progress]) => {
+      acc[treeId] = {
+        unlockedNodes: { ...progress.unlockedNodes },
+      };
+      return acc;
+    },
+    {}
+  ),
   traits: base.traits.map((trait) => ({
     ...trait,
     visuals: trait.visuals ? { ...trait.visuals } : undefined,

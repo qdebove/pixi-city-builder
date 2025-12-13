@@ -210,7 +210,7 @@ export class PeopleManager {
     const path: Point[] = [currentPos, roadCenter, buildingCenter];
 
     person.setPath(path, () => {
-      target.addOccupant(person.role);
+      target.addOccupant(person.role, person.getProfile());
       this.lastTileKey.delete(person);
       person.destroy();
     });

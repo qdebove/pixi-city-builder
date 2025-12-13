@@ -86,6 +86,10 @@ export class Person extends Container {
     }
   }
 
+  public getProfile(): PersonProfile {
+    return this.profile;
+  }
+
   /**
    * Helper simple pour aller de la position actuelle à une cible.
    */
