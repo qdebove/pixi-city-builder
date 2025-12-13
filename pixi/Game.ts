@@ -13,6 +13,8 @@ import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { IncomePulse } from './IncomePulse';
 import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
 import { SelectedPersonSnapshot } from '@/types/ui';
+import { EventSystem } from './EventSystem';
+import { ActiveEventSnapshot } from './EventSystem';
 
 export interface GameUIState {
   money: number;
@@ -26,6 +28,7 @@ export interface GameUIState {
   occupantsByRole: Record<PersonRole, number>;
   reputation: ReputationSnapshot;
   zoom: number;
+  activeEvents: ActiveEventSnapshot[];
 }
 
 export class Game {
@@ -37,6 +40,7 @@ export class Game {
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
+  private eventSystem: EventSystem;
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -44,6 +48,7 @@ export class Game {
   private selectedPerson: SelectedPersonSnapshot | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
+  private activeEvents: ActiveEventSnapshot[] = [];
 
   private lastStatsUpdate = 0;
 
@@ -57,6 +62,7 @@ export class Game {
     this.spriteResolver = new SpriteResolver(BASE_ASSET_REGISTRY);
     this.reputationSystem = new ReputationSystem();
     this.skillEngine = new SkillEngine();
+    this.eventSystem = new EventSystem();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -115,6 +121,9 @@ export class Game {
   };
 
   private onSimulationTick = (ctx: TickContext) => {
+    const eventModifiers = this.eventSystem.update(ctx);
+    this.activeEvents = eventModifiers.activeEvents;
+
     this.buildingManager.getBuildings().forEach((building) => {
       const skillSnapshot = building.type.isRoad
         ? null
@@ -126,10 +135,17 @@ export class Game {
 
       const completedCycles = building.accumulateIncomeProgress(ctx.deltaMs);
       for (let i = 0; i < completedCycles; i++) {
-        this.harvestBuilding(building, skillSnapshot ?? undefined);
+        this.harvestBuilding(
+          building,
+          skillSnapshot ?? undefined,
+          eventModifiers.incomeMultiplier
+        );
       }
     });
 
+    this.peopleManager.setSpawnIntervalMultiplier(
+      eventModifiers.spawnIntervalMultiplier
+    );
     this.peopleManager.update(ctx);
 
     this.reputationSystem.update({
@@ -137,6 +153,12 @@ export class Game {
       movingPeople: this.peopleManager.getPeopleCountByRole(),
       deltaMs: ctx.deltaMs,
     });
+
+    this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
+
+    if (eventModifiers.moneyDelta !== 0) {
+      this.money += eventModifiers.moneyDelta;
+    }
 
     if (ctx.nowMs - this.lastStatsUpdate > 250) {
       this.lastStatsUpdate = ctx.nowMs;
@@ -209,9 +231,11 @@ export class Game {
 
   public harvestBuilding(
     building: Building,
-    skillSnapshot?: BuildingSkillSnapshot
+    skillSnapshot?: BuildingSkillSnapshot,
+    incomeMultiplier: number = 1
   ) {
-    const income = skillSnapshot?.incomePerTick ?? building.getIncome();
+    const baseIncome = skillSnapshot?.incomePerTick ?? building.getIncome();
+    const income = Math.floor(baseIncome * Math.max(0, incomeMultiplier));
     if (income <= 0) return;
 
     this.money += income;
@@ -340,6 +364,7 @@ export class Game {
       occupantsByRole,
       reputation: this.reputationSystem.snapshot(),
       zoom: this.worldView.getScale(),
+      activeEvents: this.activeEvents,
     });
   }
 

@@ -1,6 +1,7 @@
 'use client';
 import { BuildingDetails } from '@/components/BuildingDetails';
 import { BuildingSidebar } from '@/components/BuildingSidebar';
+import { EventTicker } from '@/components/EventTicker';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { Game, GameUIState } from '@/pixi/Game';
@@ -32,6 +33,7 @@ const Home: React.FC = () => {
       regulatoryPressure: 0,
     },
     zoom: 1,
+    activeEvents: [],
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -310,7 +312,7 @@ const Home: React.FC = () => {
           <button
             onClick={handleResume}
             disabled={!gameState.isPaused}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition 
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
               ${
                 !gameState.isPaused
                   ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
@@ -321,6 +323,8 @@ const Home: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <EventTicker events={gameState.activeEvents} />
 
       {/* Layout principal */}
       <div className="flex h-[calc(100vh-40px)] w-full pt-0">
