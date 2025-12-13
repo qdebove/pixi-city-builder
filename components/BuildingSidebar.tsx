@@ -4,13 +4,14 @@ import {
   calculateIncome,
 } from '@/types/types';
 import React, { useState } from 'react';
-import { SkillTreePreview } from './SkillTreePreview';
+import { MenuTab } from './MainMenuOverlay';
 
 interface SidebarProps {
   money: number;
   totalClicks: number;
   onSelect: (type: BuildingType | null) => void;
   draggingMode: BuildingType | null;
+  onOpenMenu: (tab: MenuTab) => void;
 }
 
 const CATEGORY_LABELS: Record<
@@ -154,7 +155,24 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="mt-4 border-t border-slate-700 pt-3">
-        <SkillTreePreview />
+        <p className="text-xs text-slate-300">
+          Les arbres de compétences et la bibliothèque de bâtiments sont désormais
+          regroupés dans le menu principal pour rester lisibles sur mobile.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            onClick={() => onOpenMenu('buildings')}
+            className="rounded-lg bg-slate-700 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-slate-600"
+          >
+            Ouvrir la bibliothèque
+          </button>
+          <button
+            onClick={() => onOpenMenu('skills')}
+            className="rounded-lg bg-indigo-700 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-indigo-600"
+          >
+            Arbres de compétences
+          </button>
+        </div>
       </div>
 
       <div className="mt-auto pt-4 text-xs text-slate-500 border-t border-slate-700">
