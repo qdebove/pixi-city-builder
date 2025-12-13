@@ -1,5 +1,5 @@
 import { Application, Container, Point } from 'pixi.js';
-import { CELL_SIZE } from '../types/types';
+import { CELL_SIZE, PersonRole } from '../types/types';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { Person } from './Person';
@@ -109,7 +109,8 @@ export class PeopleManager {
       (b) => new Point(b.x, b.y)
     );
 
-    const person = new Person(this.app, pathPoints);
+    const role = this.pickRole();
+    const person = new Person(this.app, pathPoints, role);
     person.zIndex = 1000;
     this.world.addChild(person);
     this.people.push(person);
@@ -173,9 +174,7 @@ export class PeopleManager {
     const chance = 0.25;
     if (Math.random() > chance) return;
 
-    const available = candidates.filter(
-      (b) => b.state.currentOccupants < b.type.capacity
-    );
+    const available = candidates.filter((b) => b.hasCapacity());
     if (available.length === 0) return;
 
     const target =
@@ -189,11 +188,25 @@ export class PeopleManager {
     const path: Point[] = [currentPos, roadCenter, buildingCenter];
 
     person.setPath(path, () => {
-      target.updateState({
-        currentOccupants: target.state.currentOccupants + 1,
-      });
+      target.addOccupant(person.role);
       this.lastTileKey.delete(person);
       person.destroy();
     });
+  }
+
+  private pickRole(): PersonRole {
+    const roll = Math.random();
+    return roll < 0.7 ? 'visitor' : 'staff';
+  }
+
+  public getPeopleCountByRole(): Record<PersonRole, number> {
+    this.people = this.people.filter((p) => !p.destroyed);
+    return this.people.reduce(
+      (acc, person) => {
+        acc[person.role] += 1;
+        return acc;
+      },
+      { visitor: 0, staff: 0 } as Record<PersonRole, number>
+    );
   }
 }

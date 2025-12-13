@@ -232,10 +232,10 @@ export interface SpriteResolveRequest {
   target: SpriteRule["target"];
 
   /** The subject data, e.g. Visitor/Worker/BuildingInstance */
-  entity: any;
+  entity: unknown;
 
   /** Optional extra context: city, building, visitor, etc. */
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 
   variant?: SpriteVariant;
   facing?: Facing;
