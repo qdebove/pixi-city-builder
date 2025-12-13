@@ -2,6 +2,7 @@
 import { BuildingDetails } from '@/components/BuildingDetails';
 import { BuildingSidebar } from '@/components/BuildingSidebar';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
+import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { Game, GameUIState } from '@/pixi/Game';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import React, {
@@ -19,6 +20,7 @@ const Home: React.FC = () => {
     money: 1000,
     totalClicks: 0,
     selectedBuildingState: null,
+    selectedPerson: null,
     isPaused: false,
     movingPeopleCount: 0,
     occupantsByType: {},
@@ -29,6 +31,7 @@ const Home: React.FC = () => {
       premium: 50,
       regulatoryPressure: 0,
     },
+    zoom: 1,
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -42,32 +45,8 @@ const Home: React.FC = () => {
     setIsMenuOpen(true);
   };
 
-  const [popoverPos, setPopoverPos] = useState<{
-    left: number;
-    top: number;
-  } | null>(null);
-
   const handleStateChange = useCallback((newState: GameUIState) => {
     setGameState(newState);
-
-    if (
-      newState.selectedBuildingState &&
-      gameRef.current &&
-      gameContainerRef.current
-    ) {
-      const p =
-        gameRef.current.getSelectedBuildingScreenPosition();
-      if (p) {
-        const rect =
-          gameContainerRef.current.getBoundingClientRect();
-        setPopoverPos({
-          left: rect.left + p.x,
-          top: rect.top + p.y,
-        });
-      }
-    } else {
-      setPopoverPos(null);
-    }
   }, []);
 
   useEffect(() => {
@@ -115,6 +94,32 @@ const Home: React.FC = () => {
       currency: 'EUR',
       maximumFractionDigits: 0,
     });
+
+  const handleClosePerson = () => gameRef.current?.deselectPerson();
+
+  const selectionContent = gameState.selectedPerson ? (
+    <PersonDetailsPanel person={gameState.selectedPerson} />
+  ) : selectedType && gameState.selectedBuildingState ? (
+    <BuildingDetails
+      type={selectedType}
+      state={gameState.selectedBuildingState}
+      money={gameState.money}
+      onUpgrade={handleUpgrade}
+    />
+  ) : null;
+
+  const closeSelection = () => {
+    if (gameState.selectedPerson) {
+      handleClosePerson();
+    } else if (gameState.selectedBuildingState) {
+      handleCloseDetails();
+    }
+  };
+
+  const panelScale =
+    gameState.zoom > 0
+      ? Math.max(0.85, Math.min(1.1, 1 / gameState.zoom))
+      : 1;
 
   return (
     <div className="relative h-screen w-screen bg-slate-900 text-white select-none overflow-hidden">
@@ -303,49 +308,39 @@ const Home: React.FC = () => {
           />
         </div>
 
-        {/* Canvas Pixi : curseur croix sur la zone de jeu */}
-        <div
-          ref={gameContainerRef}
-          className="grow relative bg-slate-950 cursor-crosshair"
-        />
-      </div>
+        <div className="relative grow bg-slate-950">
+          <div
+            ref={gameContainerRef}
+            className="absolute inset-0 cursor-crosshair"
+          />
 
-      {/* Popover de détails */}
-      {gameState.selectedBuildingState &&
-        selectedType &&
-        popoverPos && (
-          <div className="pointer-events-none absolute inset-0 z-30">
-            {/* overlay clic extérieur, curseur croix aussi */}
-            <div
-              className="pointer-events-auto absolute inset-0 cursor-crosshair"
-              onClick={handleCloseDetails}
-            />
-            <div
-              className="pointer-events-auto absolute"
-              style={{
-                left: popoverPos.left,
-                top: popoverPos.top,
-                transform: 'translate(-50%, -110%)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="relative">
-                <button
-                  onClick={handleCloseDetails}
-                  className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-slate-800 border border-slate-600 text-xs flex items-center justify-center hover:bg-slate-700"
-                >
-                  ✕
-                </button>
-                <BuildingDetails
-                  type={selectedType}
-                  state={gameState.selectedBuildingState}
-                  money={gameState.money}
-                  onUpgrade={handleUpgrade}
-                />
+          {selectionContent && (
+            <div className="pointer-events-none absolute left-3 top-3 z-30 flex max-w-full">
+              <div
+                className="pointer-events-auto w-[min(440px,calc(100vw-340px))] max-w-lg origin-top-left"
+                style={{ transform: `scale(${panelScale})` }}
+              >
+                <div className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/90 shadow-2xl backdrop-blur-md">
+                  <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
+                    <span>
+                      {gameState.selectedPerson
+                        ? 'Fiche personnage'
+                        : 'Fiche bâtiment'}
+                    </span>
+                    <button
+                      onClick={closeSelection}
+                      className="rounded-full border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 transition hover:bg-slate-700"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                  <div className="p-3">{selectionContent}</div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
 
       <MainMenuOverlay
         open={isMenuOpen}
