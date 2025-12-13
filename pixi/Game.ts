@@ -10,8 +10,11 @@ import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
 import { PeopleManager } from './PeopleManager';
+import { ReputationSnapshot, ReputationSystem } from './ReputationSystem';
 import { WorldView } from './WorldView';
 import { SimulationClock, TickContext } from './SimulationClock';
+import { SpriteResolver } from './assets/SpriteResolver';
+import { BASE_ASSET_REGISTRY } from './assets/registry';
 
 export interface GameUIState {
   money: number;
@@ -22,6 +25,7 @@ export interface GameUIState {
   occupantsByType: Record<string, number>;
   peopleByRole: Record<PersonRole, number>;
   occupantsByRole: Record<PersonRole, number>;
+  reputation: ReputationSnapshot;
 }
 
 export class Game {
@@ -30,6 +34,8 @@ export class Game {
   private buildingManager: BuildingManager;
   private peopleManager: PeopleManager;
   private simulation: SimulationClock;
+  private spriteResolver: SpriteResolver;
+  private reputationSystem: ReputationSystem;
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -46,6 +52,8 @@ export class Game {
     onStateChange: (state: GameUIState) => void
   ) {
     this.onStateChange = onStateChange;
+    this.spriteResolver = new SpriteResolver(BASE_ASSET_REGISTRY);
+    this.reputationSystem = new ReputationSystem();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -72,7 +80,8 @@ export class Game {
     this.peopleManager = new PeopleManager(
       this.app,
       this.worldView.world,
-      this.buildingManager
+      this.buildingManager,
+      this.spriteResolver
     );
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
@@ -94,6 +103,12 @@ export class Game {
     });
 
     this.peopleManager.update(ctx);
+
+    this.reputationSystem.update({
+      buildings: this.buildingManager.getBuildings(),
+      movingPeople: this.peopleManager.getPeopleCountByRole(),
+      deltaMs: ctx.deltaMs,
+    });
 
     if (ctx.nowMs - this.lastStatsUpdate > 250) {
       this.lastStatsUpdate = ctx.nowMs;
@@ -290,6 +305,7 @@ export class Game {
       occupantsByType,
       peopleByRole,
       occupantsByRole,
+      reputation: this.reputationSystem.snapshot(),
     });
   }
 

@@ -4,9 +4,19 @@ import {
   Graphics,
   IDestroyOptions,
   Point,
+  Sprite,
+  Texture,
   Ticker,
 } from 'pixi.js';
+import { SpriteVariant } from '../types/data-contract';
 import { PersonRole } from '../types/types';
+import { SpriteResolver } from './assets/SpriteResolver';
+
+interface PersonContext {
+  id: string;
+  role: PersonRole;
+  variant: SpriteVariant;
+}
 
 type FinishCallback = () => void;
 
@@ -19,23 +29,36 @@ export class Person extends Container {
   private paused = false;
   private onFinished: FinishCallback | null = null;
   public readonly role: PersonRole;
+  private readonly spriteResolver: SpriteResolver;
+  private readonly id: string;
+  private variant: SpriteVariant = 'move';
+
+  private visual: Sprite | Graphics;
 
   constructor(
     app: Application,
     path: Point[],
     role: PersonRole,
+    spriteResolver: SpriteResolver,
     onFinished?: FinishCallback
   ) {
     super();
     this.app = app;
     this.path = this.normalizePath(path);
     this.role = role;
+    this.spriteResolver = spriteResolver;
+    this.id = crypto.randomUUID();
     this.onFinished = onFinished || null;
 
-    const g = new Graphics();
+    const fallbackVisual = new Graphics();
     const color = role === 'visitor' ? 0xf9a8d4 : 0x38bdf8;
-    g.circle(0, 0, 6).fill(color).stroke({ width: 2, color: 0x1f2933 });
-    this.addChild(g);
+    fallbackVisual
+      .circle(0, 0, 6)
+      .fill(color)
+      .stroke({ width: 2, color: 0x1f2933 });
+    this.visual = fallbackVisual;
+    this.addChild(this.visual);
+    this.refreshVisual('move');
 
     if (this.path.length > 0) {
       this.position.copyFrom(this.path[0]);
@@ -46,6 +69,7 @@ export class Person extends Container {
 
   public setPaused(paused: boolean) {
     this.paused = paused;
+    this.refreshVisual(paused ? 'idle' : 'move');
   }
 
   /**
@@ -57,6 +81,7 @@ export class Person extends Container {
     this.path = this.normalizePath(points);
     this.segmentIndex = 0;
     this.segmentProgress = 0;
+    this.refreshVisual('move');
     if (onFinished) {
       this.onFinished = onFinished;
     }
@@ -96,6 +121,42 @@ export class Person extends Container {
     }
 
     return result;
+  }
+
+  private refreshVisual(variant: SpriteVariant) {
+    if (this.variant === variant && this.visual instanceof Sprite) {
+      return;
+    }
+
+    this.variant = variant;
+    const requestEntity: PersonContext = {
+      id: this.id,
+      role: this.role,
+      variant,
+    };
+
+    const target = this.role === 'staff' ? 'worker' : 'visitor';
+    const resolved = this.spriteResolver.resolve({
+      kind: 'sprite',
+      target,
+      entity: requestEntity,
+      variant,
+      seedKey: this.id,
+    });
+
+    if (!resolved) return;
+
+    const texture = Texture.from(resolved.uri);
+    const sprite = new Sprite({ texture });
+    sprite.anchor.set(0.5);
+    if (resolved.meta?.scale) {
+      sprite.scale.set(resolved.meta.scale);
+    }
+
+    this.removeChild(this.visual);
+    this.visual.destroy({ texture: false, baseTexture: false });
+    this.visual = sprite;
+    this.addChild(sprite);
   }
 
   private update(ticker: Ticker) {
