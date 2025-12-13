@@ -3,8 +3,10 @@ import { SkillTreePreview } from './SkillTreePreview';
 import { BuildingLibrary } from './BuildingLibrary';
 import { PeopleDirectory } from './PeopleDirectory';
 import { PersonRole } from '@/types/types';
+import { RecruitmentBoard } from './RecruitmentBoard';
+import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 
-export type MenuTab = 'buildings' | 'skills' | 'people';
+export type MenuTab = 'buildings' | 'skills' | 'people' | 'recruitment';
 
 interface MainMenuOverlayProps {
   open: boolean;
@@ -13,6 +15,9 @@ interface MainMenuOverlayProps {
   onClose: () => void;
   occupantsByRole: Record<PersonRole, number>;
   movingPeople: Record<PersonRole, number>;
+  money: number;
+  reputation: ReputationSnapshot;
+  totalClicks: number;
 }
 
 const tabs: { id: MenuTab; label: string; description: string }[] = [
@@ -20,7 +25,7 @@ const tabs: { id: MenuTab; label: string; description: string }[] = [
     id: 'buildings',
     label: 'Bâtiments',
     description:
-      'Consulter la fiche descriptive de chaque type de bâtiment depuis le menu principal.',
+      'Consulter la fiche descriptive de chaque type de bâtiment depuis le bureau d’urbanisme.',
   },
   {
     id: 'skills',
@@ -34,6 +39,12 @@ const tabs: { id: MenuTab; label: string; description: string }[] = [
     description:
       'Accéder aux fiches des visiteurs et du personnel sans devoir sélectionner la scène.',
   },
+  {
+    id: 'recruitment',
+    label: 'Recrutement',
+    description:
+      'Signer des contrats de travailleuses selon la progression, la réputation et les besoins actuels.',
+  },
 ];
 
 export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
@@ -43,6 +54,9 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
   onClose,
   occupantsByRole,
   movingPeople,
+  money,
+  reputation,
+  totalClicks,
 }) => {
   if (!open) return null;
 
@@ -54,11 +68,11 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
         onClick={onClose}
       />
       <section className="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/95 shadow-2xl">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
-          <div className="flex flex-col">
-            <p className="text-xs uppercase text-slate-400">Menu principal</p>
-            <h2 className="text-lg font-semibold text-white">Navigation dédiée</h2>
-          </div>
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+            <div className="flex flex-col">
+              <p className="text-xs uppercase text-slate-400">Bureau d’urbanisme</p>
+              <h2 className="text-lg font-semibold text-white">Navigation dédiée</h2>
+            </div>
           <button
             onClick={onClose}
             className="rounded-full bg-slate-800 px-3 py-1 text-sm font-semibold text-slate-200 hover:bg-slate-700"
@@ -104,6 +118,14 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
             <PeopleDirectory
               occupantsByRole={occupantsByRole}
               movingPeople={movingPeople}
+            />
+          )}
+          {tab === 'recruitment' && (
+            <RecruitmentBoard
+              occupantsByRole={occupantsByRole}
+              reputation={reputation}
+              money={money}
+              totalClicks={totalClicks}
             />
           )}
         </div>
