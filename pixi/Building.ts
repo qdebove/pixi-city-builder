@@ -30,10 +30,7 @@ export class Building extends Container {
       currentHealth: type.baseHealth,
       currentOccupants: 0,
       occupants: { visitor: 0, staff: 0 },
-      isAutoClickerUnlocked: true,
-      isAutoClickerActive: true,
-      autoClickerInterval: type.baseIntervalMs || 2000, // ✅ propre à chaque type
-      autoClickerLevel: 1,
+      productionIntervalMs: type.baseIntervalMs || 2000, // ✅ propre à chaque type
     };
 
     this.position.set(
@@ -90,10 +87,10 @@ export class Building extends Container {
     this.state = { ...this.state, ...newState };
     this.state.currentOccupants = this.getTotalOccupants();
 
-    if (newState.autoClickerInterval !== undefined) {
+    if (newState.productionIntervalMs !== undefined) {
       this.incomeProgressMs = Math.min(
         this.incomeProgressMs,
-        Math.max(newState.autoClickerInterval, 0)
+        Math.max(newState.productionIntervalMs, 0)
       );
     }
 
@@ -202,7 +199,7 @@ export class Building extends Container {
   public accumulateIncomeProgress(deltaMs: number): number {
     if (this.type.isRoad) return 0;
 
-    const interval = Math.max(this.state.autoClickerInterval, 50);
+    const interval = Math.max(this.state.productionIntervalMs, 50);
     this.incomeProgressMs += deltaMs;
 
     const completedCycles = Math.floor(this.incomeProgressMs / interval);

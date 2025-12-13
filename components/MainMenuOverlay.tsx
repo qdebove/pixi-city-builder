@@ -26,7 +26,7 @@ const tabs: { id: MenuTab; label: string; description: string }[] = [
     id: 'skills',
     label: 'Arbres de compétences',
     description:
-      'Afficher les arbres par métier dans un espace dédié, pensé pour les écrans mobiles et desktop.',
+      'Arbres dédiés par bâtiment, personnage et travailleur, avec une mise en page RPG.',
   },
   {
     id: 'people',
@@ -93,7 +93,9 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-sky-200">Arbres de compétences</h3>
               <p className="text-sm text-slate-300">
-                Les arbres sont regroupés dans ce panneau pour rester lisibles sur mobile comme sur desktop.
+                Chaque catégorie dispose désormais de son propre menu : progression des bâtiments,
+                destinées des personnages visiteurs et voies de talents pour les travailleurs. La présentation a été
+                repensée façon RPG (paliers, badges, ligne du temps) pour mieux distinguer chaque parcours.
               </p>
               <SkillTreePreview />
             </div>

@@ -1,10 +1,4 @@
-import {
-  BuildingState,
-  BuildingType,
-  calculateAutoClickerUpgradeCost,
-  calculateIncome,
-  calculateUpgradeCost,
-} from '@/types/types';
+import { BuildingState, BuildingType, calculateIncome, calculateUpgradeCost } from '@/types/types';
 import React from 'react';
 
 interface DetailsProps {
@@ -12,7 +6,6 @@ interface DetailsProps {
   state: BuildingState;
   money: number;
   onUpgrade: () => void;
-  onUpgradeAutoClicker: () => void;
 }
 
 export const BuildingDetails: React.FC<DetailsProps> = ({
@@ -20,7 +13,6 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   state,
   money,
   onUpgrade,
-  onUpgradeAutoClicker,
 }) => {
   const baseIncome = calculateIncome(type, state.level);
   const upgradeCost = calculateUpgradeCost(type, state.level);
@@ -30,14 +22,6 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const visitorCount = state.occupants.visitor || 0;
   const staffCount = state.occupants.staff || 0;
   const staffCapacity = type.staffCapacity;
-
-  const isAutoMax =
-    state.autoClickerLevel >= type.autoClickerMaxLevel;
-  const autoClickerCost = calculateAutoClickerUpgradeCost(
-    type,
-    state.autoClickerLevel
-  );
-  const canAffordAutoClicker = money >= autoClickerCost;
 
   const ratio =
     type.capacity > 0
@@ -52,12 +36,12 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   );
 
   const ticksPerSecond =
-    state.autoClickerInterval > 0
-      ? 1000 / state.autoClickerInterval
+    state.productionIntervalMs > 0
+      ? 1000 / state.productionIntervalMs
       : 0;
   const intervalSec =
-    state.autoClickerInterval > 0
-      ? state.autoClickerInterval / 1000
+    state.productionIntervalMs > 0
+      ? state.productionIntervalMs / 1000
       : 0;
 
   return (
@@ -167,30 +151,6 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                 : `Améliorer au Niv. ${
                     state.level + 1
                   } (${upgradeCost}€)`}
-            </button>
-          </div>
-
-          <h4 className="text-sm font-semibold text-slate-400 border-t border-slate-600 pt-3 mt-3 mb-2">
-            Production passive
-          </h4>
-
-          <div className="space-y-2">
-            <button
-              onClick={onUpgradeAutoClicker}
-              disabled={isAutoMax || !canAffordAutoClicker}
-              className={`w-full py-2 rounded text-sm transition ${
-                isAutoMax
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : canAffordAutoClicker
-                  ? 'bg-purple-600 hover:bg-purple-500'
-                  : 'bg-gray-800 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {isAutoMax
-                ? 'Vitesse max atteinte'
-                : `Améliorer la vitesse (niv. ${
-                    state.autoClickerLevel + 1
-                  } – ${autoClickerCost}€)`}
             </button>
           </div>
         </>

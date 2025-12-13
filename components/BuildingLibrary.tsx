@@ -97,10 +97,8 @@ export const BuildingLibrary: React.FC = () => {
               </dl>
 
               <p className="mt-2 text-[12px] text-slate-400">
-                Niveau max : {type.maxLevel} • Santé : {type.baseHealth} •
-                Auto-clicker {type.autoClickerUnlockLevel === 999
-                  ? 'non disponible'
-                  : `dès niv. ${type.autoClickerUnlockLevel}`}
+                Niveau max : {type.maxLevel} • Santé : {type.baseHealth} • Cadence
+                passive : {type.baseIntervalMs / 1000}s
               </p>
             </article>
           );

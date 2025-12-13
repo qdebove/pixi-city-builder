@@ -1,11 +1,6 @@
 import { Application, Assets, FederatedPointerEvent, Point } from 'pixi.js';
-import {
-  BuildingState,
-  BuildingType,
-  PersonRole,
-  calculateAutoClickerUpgradeCost,
-  calculateUpgradeCost,
-} from '../types/types';
+import { AssetDefinition } from '../types/data-contract';
+import { BuildingState, BuildingType, PersonRole, calculateUpgradeCost } from '../types/types';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
@@ -94,7 +89,7 @@ export class Game {
   }
 
   private async preloadAssets() {
-    const assets: any[] = Object.values(BASE_ASSET_REGISTRY.assets);
+    const assets: AssetDefinition[] = Object.values(BASE_ASSET_REGISTRY.assets);
 
     assets.forEach((asset) => {
       if (!Assets.get(asset.id)) {
@@ -228,37 +223,6 @@ export class Game {
 
       this.emitState();
     }
-  }
-
-  public toggleAutoClicker() {
-    // plus utilisé (prod toujours auto), conservé pour compat
-  }
-
-  public upgradeAutoClickerSpeed() {
-    if (!this.selectedBuilding || this.isPaused) return;
-    const b = this.selectedBuilding;
-    if (b.type.isRoad) return;
-
-    const currentLevel = b.state.autoClickerLevel;
-    if (currentLevel >= b.type.autoClickerMaxLevel) return;
-
-    const cost = calculateAutoClickerUpgradeCost(
-      b.type,
-      currentLevel
-    );
-    if (this.money < cost) return;
-
-    this.money -= cost;
-
-    const newLevel = currentLevel + 1;
-    const newInterval = Math.max(200, b.state.autoClickerInterval * 0.9);
-
-    b.updateState({
-      autoClickerLevel: newLevel,
-      autoClickerInterval: newInterval,
-    });
-
-    this.emitState();
   }
 
   public pause() {
