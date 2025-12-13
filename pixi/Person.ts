@@ -146,7 +146,7 @@ export class Person extends Container {
 
     if (!resolved) return;
 
-    const texture = Texture.from(resolved.uri);
+    const texture = Texture.from(resolved.assetId);
     const sprite = new Sprite({ texture });
     sprite.anchor.set(0.5);
     if (resolved.meta?.scale) {
