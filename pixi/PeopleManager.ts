@@ -5,12 +5,14 @@ import { BuildingManager } from './BuildingManager';
 import { Person } from './Person';
 import { TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
+import { PersonFactory } from './data/person-factory';
 
 export class PeopleManager {
   private app: Application;
   private world: Container;
   private buildingManager: BuildingManager;
   private spriteResolver: SpriteResolver;
+  private personFactory: PersonFactory;
 
   private people: Person[] = [];
   private elapsedSinceSpawn = 0;
@@ -28,6 +30,7 @@ export class PeopleManager {
     this.world = world;
     this.buildingManager = buildingManager;
     this.spriteResolver = spriteResolver;
+    this.personFactory = new PersonFactory();
   }
 
   public update(ctx: TickContext) {
@@ -117,10 +120,16 @@ export class PeopleManager {
     );
 
     const role = this.pickRole();
+    const profile =
+      role === 'staff'
+        ? this.personFactory.createWorker()
+        : this.personFactory.createVisitor();
+
     const person = new Person(
       this.app,
       pathPoints,
       role,
+      profile,
       this.spriteResolver
     );
     person.zIndex = 1000;

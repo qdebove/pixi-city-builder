@@ -78,6 +78,58 @@ const iconAssets = {
     tags: ['worker.icon'],
     meta: { width: 32, height: 32 },
   },
+  skill_icon_welcome: {
+    id: 'skill_icon_welcome',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('C', '#bef264'),
+    tags: ['skill.concierge'],
+    meta: { width: 32, height: 32 },
+  },
+  skill_icon_vip: {
+    id: 'skill_icon_vip',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('VIP', '#fbbf24'),
+    tags: ['skill.concierge', 'skill.premium'],
+    meta: { width: 32, height: 32 },
+  },
+  skill_icon_toolkit: {
+    id: 'skill_icon_toolkit',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('T', '#38bdf8'),
+    tags: ['skill.maintenance'],
+    meta: { width: 32, height: 32 },
+  },
+  skill_icon_alert: {
+    id: 'skill_icon_alert',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('!', '#fb7185'),
+    tags: ['skill.risk'],
+    meta: { width: 32, height: 32 },
+  },
+  skill_icon_polyglot: {
+    id: 'skill_icon_polyglot',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('L', '#a5b4fc'),
+    tags: ['skill.trait'],
+    meta: { width: 32, height: 32 },
+  },
+  skill_icon_meticulous: {
+    id: 'skill_icon_meticulous',
+    kind: 'icon' as VisualKind,
+    uri: badgeSvg('✦', '#f472b6'),
+    tags: ['skill.trait'],
+    meta: { width: 32, height: 32 },
+  },
+};
+
+const effectAssets = {
+  income_pulse: {
+    id: 'income_pulse',
+    kind: 'effect' as VisualKind,
+    uri: circleSvg('#f59e0b', '#fef3c7'),
+    tags: ['effect.income'],
+    meta: { width: 64, height: 64, scale: 1.2 },
+  },
 };
 
 export const BASE_ASSET_REGISTRY: AssetRegistry = {
@@ -85,6 +137,7 @@ export const BASE_ASSET_REGISTRY: AssetRegistry = {
     ...mapAssets,
     ...portraitAssets,
     ...iconAssets,
+    ...effectAssets,
   },
   rules: {
     visitor_map_move: {
@@ -159,6 +212,48 @@ export const BASE_ASSET_REGISTRY: AssetRegistry = {
       target: 'worker',
       priority: 100,
       candidates: ['staff_icon_default'],
+      mode: 'first',
+    },
+    skill_icon_default: {
+      id: 'skill_icon_default',
+      kind: 'icon',
+      target: 'skill',
+      priority: 120,
+      candidates: [
+        'skill_icon_welcome',
+        'skill_icon_toolkit',
+        'skill_icon_alert',
+      ],
+      mode: 'deterministic',
+      deterministicKeyPaths: ['entity.id'],
+    },
+    skill_icon_premium: {
+      id: 'skill_icon_premium',
+      kind: 'icon',
+      target: 'skill',
+      priority: 140,
+      conditions: { path: 'entity.tags', op: '==', value: 'premium' },
+      candidates: ['skill_icon_vip'],
+      mode: 'first',
+      fallbackRuleId: 'skill_icon_default',
+    },
+    skill_icon_trait: {
+      id: 'skill_icon_trait',
+      kind: 'icon',
+      target: 'skill',
+      priority: 160,
+      conditions: { path: 'entity.tags', op: '==', value: 'trait' },
+      candidates: ['skill_icon_polyglot', 'skill_icon_meticulous'],
+      mode: 'deterministic',
+      deterministicKeyPaths: ['entity.id'],
+      fallbackRuleId: 'skill_icon_default',
+    },
+    income_effect: {
+      id: 'income_effect',
+      kind: 'effect',
+      target: 'effect',
+      priority: 100,
+      candidates: ['income_pulse'],
       mode: 'first',
     },
   },

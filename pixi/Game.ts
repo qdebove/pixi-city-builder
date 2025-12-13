@@ -15,6 +15,7 @@ import { WorldView } from './WorldView';
 import { SimulationClock, TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
+import { IncomePulse } from './IncomePulse';
 
 export interface GameUIState {
   money: number;
@@ -185,6 +186,7 @@ export class Game {
 
     const center = building.getCenterGlobalPosition();
     new FloatingText(this.app, income, center.x, center.y);
+    new IncomePulse(this.app, center.x, center.y, 1);
 
     this.emitState();
   }

@@ -4,6 +4,7 @@ import {
   calculateIncome,
 } from '@/types/types';
 import React, { useState } from 'react';
+import { SkillTreePreview } from './SkillTreePreview';
 
 interface SidebarProps {
   money: number;
@@ -150,6 +151,10 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
             </details>
           );
         })}
+      </div>
+
+      <div className="mt-4 border-t border-slate-700 pt-3">
+        <SkillTreePreview />
       </div>
 
       <div className="mt-auto pt-4 text-xs text-slate-500 border-t border-slate-700">

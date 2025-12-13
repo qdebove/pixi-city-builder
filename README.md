@@ -477,7 +477,7 @@ Le code doit rester :
 
 * [x] Différenciation claire **visiteurs / personnel**
 * [x] Système d’assignation intelligente du personnel aux bâtiments
-* [ ] Implémentation complète du **modèle de données** (ville, passifs, workers, visitors, skills, traits)
+* [x] Implémentation complète du **modèle de données** (ville, passifs, workers, visitors, skills, traits)
 * [x] Moteur de simulation par tick (temps logique unifié)
 * [x] Résolveur de passifs & procs (skills conditionnels + cooldowns)
 * [x] Système de réputation dynamique (locale, premium, régulation)
@@ -485,8 +485,8 @@ Le code doit rester :
 * [x] Système de sprites pour personnel (map + portrait + icône)
 * [x] Loader d’assets data-driven (hiérarchie de dossiers, packs, overrides)
 * [x] Règles de sélection de sprites (SpriteRule, tags, variantes)
-* [ ] Icônes & illustrations de compétences (arbres de skills)
-* [ ] Effets visuels légers (skills, revenus, alertes d’état)
+* [x] Icônes & illustrations de compétences (arbres de skills)
+* [x] Effets visuels légers (skills, revenus, alertes d’état)
 
 ---
 
