@@ -29,6 +29,7 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
 
   const visitorCount = state.occupants.visitor || 0;
   const staffCount = state.occupants.staff || 0;
+  const staffCapacity = type.staffCapacity;
 
   const isAutoMax =
     state.autoClickerLevel >= type.autoClickerMaxLevel;
@@ -40,9 +41,15 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
 
   const ratio =
     type.capacity > 0
-      ? Math.min(1, state.currentOccupants / type.capacity)
+      ? Math.min(1, state.occupants.visitor / type.capacity)
       : 0;
-  const currentTickIncome = Math.floor(baseIncome * (1 + ratio));
+  const staffRatio =
+    staffCapacity > 0
+      ? Math.min(1, staffCount / staffCapacity)
+      : 0;
+  const currentTickIncome = Math.floor(
+    baseIncome * (1 + ratio) * (1 + staffRatio * type.staffEfficiency)
+  );
 
   const ticksPerSecond =
     state.autoClickerInterval > 0
@@ -69,7 +76,7 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
         <p>
           👤 Occupants :{' '}
           <span className="font-mono">
-            {state.currentOccupants} / {type.capacity}
+            {visitorCount} / {type.capacity}
           </span>
         </p>
         <p className="text-[12px] text-slate-400 col-span-2 flex gap-4">
@@ -81,7 +88,9 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-full bg-sky-300" />
             Personnel :
-            <span className="font-mono text-slate-100">{staffCount}</span>
+            <span className="font-mono text-slate-100">
+              {staffCount} / {staffCapacity}
+            </span>
           </span>
         </p>
 
@@ -109,7 +118,15 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                 <p className="flex justify-between">
                   <span>Occupants</span>
                   <span className="font-mono">
-                    {state.currentOccupants} / {type.capacity}
+                    {visitorCount} / {type.capacity}
+                  </span>
+                </p>
+              )}
+              {staffCapacity > 0 && (
+                <p className="flex justify-between">
+                  <span>Personnel</span>
+                  <span className="font-mono">
+                    {staffCount} / {staffCapacity}
                   </span>
                 </p>
               )}

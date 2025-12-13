@@ -132,7 +132,11 @@ export class BuildingManager {
     ];
     for (const [dx, dy] of dirs) {
       const b = this.getBuildingAtGrid(gx + dx, gy + dy);
-      if (b && !b.type.isRoad && b.type.capacity > 0) {
+      if (
+        b &&
+        !b.type.isRoad &&
+        (b.type.capacity > 0 || b.type.staffCapacity > 0)
+      ) {
         res.push(b);
       }
     }

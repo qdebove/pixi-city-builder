@@ -99,13 +99,26 @@ export class Building extends Container {
 
   public getIncome(): number {
     const base = calculateIncome(this.type, this.state.level);
-    if (this.type.capacity <= 0) return base;
+    if (this.type.capacity <= 0 && this.type.staffCapacity <= 0) return base;
 
-    const ratio = Math.min(1, this.getTotalOccupants() / this.type.capacity);
-    return Math.floor(base * (1 + ratio));
+    const visitorRatio =
+      this.type.capacity > 0
+        ? Math.min(1, this.state.occupants.visitor / this.type.capacity)
+        : 0;
+
+    const staffCapacity = this.getStaffCapacity();
+    const staffRatio =
+      staffCapacity > 0
+        ? Math.min(1, this.state.occupants.staff / staffCapacity)
+        : 0;
+    const staffBoost = 1 + staffRatio * this.type.staffEfficiency;
+
+    return Math.floor(base * (1 + visitorRatio) * staffBoost);
   }
 
   public addOccupant(role: PersonRole) {
+    if (!this.hasCapacityFor(role)) return;
+
     const nextOccupants = {
       ...this.state.occupants,
       [role]: (this.state.occupants[role] || 0) + 1,
@@ -125,12 +138,39 @@ export class Building extends Container {
   }
 
   public hasCapacity(): boolean {
-    if (this.type.capacity <= 0) return false;
-    return this.getTotalOccupants() < this.type.capacity;
+    return (
+      this.hasCapacityFor('visitor') ||
+      this.hasCapacityFor('staff')
+    );
+  }
+
+  public hasCapacityFor(role: PersonRole): boolean {
+    if (role === 'visitor') {
+      if (this.type.capacity <= 0) return false;
+      return this.state.occupants.visitor < this.type.capacity;
+    }
+
+    const staffCapacity = this.getStaffCapacity();
+    if (staffCapacity <= 0) return false;
+    return this.state.occupants.staff < staffCapacity;
   }
 
   public getTotalOccupants(): number {
     return this.computeTotalOccupants(this.state.occupants);
+  }
+
+  public getStaffCapacity(): number {
+    return this.type.staffCapacity;
+  }
+
+  public getStaffNeedScore(): number {
+    const cap = this.getStaffCapacity();
+    if (cap <= 0) return 0;
+
+    const missing = cap - this.state.occupants.staff;
+    if (missing <= 0) return 0;
+
+    return missing / cap;
   }
 
   private computeTotalOccupants(
