@@ -4,12 +4,14 @@ import {
   calculateIncome,
 } from '@/types/types';
 import React, { useState } from 'react';
+import { MenuTab } from './MainMenuOverlay';
 
 interface SidebarProps {
   money: number;
   totalClicks: number;
   onSelect: (type: BuildingType | null) => void;
   draggingMode: BuildingType | null;
+  onOpenMenu: (tab: MenuTab) => void;
 }
 
 const CATEGORY_LABELS: Record<
@@ -27,6 +29,7 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
   totalClicks,
   onSelect,
   draggingMode,
+  onOpenMenu
 }) => {
   const [showAffordableOnly, setShowAffordableOnly] = useState(false);
 
@@ -77,7 +80,7 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
             <details
               key={group.id}
               className="bg-slate-900/60 border border-slate-700 rounded-lg"
-              open
+              open={false}
             >
               <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-200 flex items-center justify-between">
                 <span>{group.label}</span>
@@ -152,6 +155,7 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
+      
       <div className="mt-auto pt-4 text-xs text-slate-500 border-t border-slate-700">
         <strong>Contrôles :</strong>
         <br />

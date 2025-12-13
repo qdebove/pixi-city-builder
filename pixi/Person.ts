@@ -8,15 +8,11 @@ import {
   Texture,
   Ticker,
 } from 'pixi.js';
-import { SpriteVariant } from '../types/data-contract';
+import { SpriteVariant, Visitor, Worker } from '../types/data-contract';
 import { PersonRole } from '../types/types';
 import { SpriteResolver } from './assets/SpriteResolver';
 
-interface PersonContext {
-  id: string;
-  role: PersonRole;
-  variant: SpriteVariant;
-}
+type PersonProfile = Visitor | Worker;
 
 type FinishCallback = () => void;
 
@@ -32,6 +28,7 @@ export class Person extends Container {
   private readonly spriteResolver: SpriteResolver;
   private readonly id: string;
   private variant: SpriteVariant = 'move';
+  private readonly profile: PersonProfile;
 
   private visual: Sprite | Graphics;
 
@@ -39,6 +36,7 @@ export class Person extends Container {
     app: Application,
     path: Point[],
     role: PersonRole,
+    profile: PersonProfile,
     spriteResolver: SpriteResolver,
     onFinished?: FinishCallback
   ) {
@@ -46,6 +44,7 @@ export class Person extends Container {
     this.app = app;
     this.path = this.normalizePath(path);
     this.role = role;
+    this.profile = profile;
     this.spriteResolver = spriteResolver;
     this.id = crypto.randomUUID();
     this.onFinished = onFinished || null;
@@ -129,17 +128,21 @@ export class Person extends Container {
     }
 
     this.variant = variant;
-    const requestEntity: PersonContext = {
-      id: this.id,
+    const requestEntity = {
+      ...this.profile,
       role: this.role,
       variant,
-    };
+    } as const;
 
     const target = this.role === 'staff' ? 'worker' : 'visitor';
     const resolved = this.spriteResolver.resolve({
       kind: 'sprite',
       target,
       entity: requestEntity,
+      context: {
+        traits: 'traits' in this.profile ? this.profile.traits : [],
+        job: 'jobs' in this.profile ? this.profile.jobs.primary : undefined,
+      },
       variant,
       seedKey: this.id,
     });

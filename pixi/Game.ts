@@ -1,11 +1,6 @@
 import { Application, Assets, FederatedPointerEvent, Point } from 'pixi.js';
-import {
-  BuildingState,
-  BuildingType,
-  PersonRole,
-  calculateAutoClickerUpgradeCost,
-  calculateUpgradeCost,
-} from '../types/types';
+import { AssetDefinition } from '../types/data-contract';
+import { BuildingState, BuildingType, PersonRole, calculateUpgradeCost } from '../types/types';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
@@ -15,6 +10,7 @@ import { WorldView } from './WorldView';
 import { SimulationClock, TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
+import { IncomePulse } from './IncomePulse';
 
 export interface GameUIState {
   money: number;
@@ -93,10 +89,10 @@ export class Game {
   }
 
   private async preloadAssets() {
-    const assets = Object.values(BASE_ASSET_REGISTRY.assets);
+    const assets: AssetDefinition[] = Object.values(BASE_ASSET_REGISTRY.assets);
 
     assets.forEach((asset) => {
-      if (!Assets.exists(asset.id)) {
+      if (!Assets.get(asset.id)) {
         Assets.add({ alias: asset.id, src: asset.uri });
       }
     });
@@ -185,6 +181,7 @@ export class Game {
 
     const center = building.getCenterGlobalPosition();
     new FloatingText(this.app, income, center.x, center.y);
+    new IncomePulse(this.app, center.x, center.y, 1);
 
     this.emitState();
   }
@@ -226,37 +223,6 @@ export class Game {
 
       this.emitState();
     }
-  }
-
-  public toggleAutoClicker() {
-    // plus utilisé (prod toujours auto), conservé pour compat
-  }
-
-  public upgradeAutoClickerSpeed() {
-    if (!this.selectedBuilding || this.isPaused) return;
-    const b = this.selectedBuilding;
-    if (b.type.isRoad) return;
-
-    const currentLevel = b.state.autoClickerLevel;
-    if (currentLevel >= b.type.autoClickerMaxLevel) return;
-
-    const cost = calculateAutoClickerUpgradeCost(
-      b.type,
-      currentLevel
-    );
-    if (this.money < cost) return;
-
-    this.money -= cost;
-
-    const newLevel = currentLevel + 1;
-    const newInterval = Math.max(200, b.state.autoClickerInterval * 0.9);
-
-    b.updateState({
-      autoClickerLevel: newLevel,
-      autoClickerInterval: newInterval,
-    });
-
-    this.emitState();
   }
 
   public pause() {

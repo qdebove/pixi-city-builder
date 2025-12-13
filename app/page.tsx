@@ -1,6 +1,7 @@
 'use client';
 import { BuildingDetails } from '@/components/BuildingDetails';
 import { BuildingSidebar } from '@/components/BuildingSidebar';
+import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { Game, GameUIState } from '@/pixi/Game';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import React, {
@@ -32,6 +33,14 @@ const Home: React.FC = () => {
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
   );
+
+  const [menuTab, setMenuTab] = useState<MenuTab>('buildings');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const openMenu = (tab: MenuTab) => {
+    setMenuTab(tab);
+    setIsMenuOpen(true);
+  };
 
   const [popoverPos, setPopoverPos] = useState<{
     left: number;
@@ -88,8 +97,6 @@ const Home: React.FC = () => {
 
   const handleUpgrade = () =>
     gameRef.current?.upgradeSelectedBuilding();
-  const handleUpgradeAutoClicker = () =>
-    gameRef.current?.upgradeAutoClickerSpeed();
 
   const handlePause = () => gameRef.current?.pause();
   const handleResume = () => gameRef.current?.resume();
@@ -112,7 +119,7 @@ const Home: React.FC = () => {
   return (
     <div className="relative h-screen w-screen bg-slate-900 text-white select-none overflow-hidden">
       {/* Barre globale en haut */}
-      <div className="z-20 flex items-center justify-between px-4 py-2 bg-slate-900/95 border-b border-slate-800">
+      <div className="z-20 flex flex-wrap items-center justify-between gap-4 px-4 py-2 bg-slate-900/95 border-b border-slate-800">
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-bold text-sky-400">
             Mini City Tycoon
@@ -123,7 +130,7 @@ const Home: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex flex-wrap items-center gap-6 text-sm">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase text-slate-400">
               Banque
@@ -235,6 +242,27 @@ const Home: React.FC = () => {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => openMenu('buildings')}
+            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+          >
+            Menu principal
+          </button>
+          <button
+            onClick={() => openMenu('skills')}
+            className="rounded-lg bg-sky-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-700"
+          >
+            Arbres de compétences
+          </button>
+          <button
+            onClick={() => openMenu('people')}
+            className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+          >
+            Fiches personnes
+          </button>
+        </div>
+
         <div className="flex gap-3">
           <button
             onClick={handlePause}
@@ -271,6 +299,7 @@ const Home: React.FC = () => {
             totalClicks={gameState.totalClicks}
             onSelect={handleSelectBuildingToBuild}
             draggingMode={draggingType}
+            onOpenMenu={openMenu}
           />
         </div>
 
@@ -312,12 +341,20 @@ const Home: React.FC = () => {
                   state={gameState.selectedBuildingState}
                   money={gameState.money}
                   onUpgrade={handleUpgrade}
-                  onUpgradeAutoClicker={handleUpgradeAutoClicker}
                 />
               </div>
             </div>
           </div>
         )}
+
+      <MainMenuOverlay
+        open={isMenuOpen}
+        tab={menuTab}
+        onTabChange={setMenuTab}
+        onClose={() => setIsMenuOpen(false)}
+        occupantsByRole={gameState.occupantsByRole}
+        movingPeople={gameState.peopleByRole}
+      />
     </div>
   );
 };
