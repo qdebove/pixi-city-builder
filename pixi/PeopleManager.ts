@@ -19,7 +19,8 @@ export class PeopleManager {
 
   private people: Person[] = [];
   private elapsedSinceSpawn = 0;
-  private readonly SPAWN_INTERVAL_MS = 4000;
+  private readonly baseSpawnIntervalMs = 4000;
+  private spawnIntervalMultiplier = 1;
 
   private lastTileKey = new Map<Person, string>();
 
@@ -45,9 +46,11 @@ export class PeopleManager {
 
     this.elapsedSinceSpawn += ctx.deltaMs;
 
-    while (this.elapsedSinceSpawn >= this.SPAWN_INTERVAL_MS) {
+    const spawnIntervalMs = this.getCurrentSpawnInterval();
+
+    while (this.elapsedSinceSpawn >= spawnIntervalMs) {
       if (this.trySpawnPerson()) {
-        this.elapsedSinceSpawn -= this.SPAWN_INTERVAL_MS;
+        this.elapsedSinceSpawn -= spawnIntervalMs;
       } else {
         // avoid tight loop when spawn conditions unmet
         this.elapsedSinceSpawn = 0;
@@ -73,6 +76,11 @@ export class PeopleManager {
   public getPeopleCount(): number {
     this.people = this.people.filter((p) => !p.destroyed);
     return this.people.length;
+  }
+
+  public setSpawnIntervalMultiplier(multiplier: number): void {
+    const safeMultiplier = Math.max(0.25, Math.min(multiplier, 4));
+    this.spawnIntervalMultiplier = safeMultiplier;
   }
 
   private trySpawnPerson(): boolean {
@@ -239,6 +247,11 @@ export class PeopleManager {
   private pickRole(): PersonRole {
     const roll = Math.random();
     return roll < 0.7 ? 'visitor' : 'staff';
+  }
+
+  private getCurrentSpawnInterval(): number {
+    const interval = this.baseSpawnIntervalMs * this.spawnIntervalMultiplier;
+    return Math.max(800, interval);
   }
 
   private pickBestBuildingForStaff(candidates: Building[]): Building | null {

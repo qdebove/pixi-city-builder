@@ -74,6 +74,21 @@ export class ReputationSystem {
     return { ...this.state };
   }
 
+  public applyExternalDelta(delta: Partial<ReputationSnapshot>): void {
+    const next: ReputationSnapshot = {
+      local: this.state.local + (delta.local ?? 0),
+      premium: this.state.premium + (delta.premium ?? 0),
+      regulatoryPressure:
+        this.state.regulatoryPressure + (delta.regulatoryPressure ?? 0),
+    };
+
+    this.state = {
+      local: clamp(next.local, 0, 100),
+      premium: clamp(next.premium, 0, 100),
+      regulatoryPressure: clamp(next.regulatoryPressure, 0, 100),
+    };
+  }
+
   private computeOccupancyScore(buildings: Building[]): number {
     const occupancies = buildings
       .filter((b) => !b.type.isRoad)

@@ -493,7 +493,7 @@ Le code doit rester :
 ### 🚀 Vision long terme
 
 * [x] Compétences actives & passives pour bâtiments et personnel
-* [ ] Événements dynamiques (afflux, contrôles, incidents abstraits)
+* [x] Événements dynamiques (afflux, contrôles, incidents abstraits)
 * [ ] IA décisionnelle avancée pour visiteurs & personnel
 * [ ] Spécialisation de quartiers (zones thématiques, bonus contextuels)
 * [ ] Économie multi-niveaux (coûts d’entretien, salaires, taxes abstraites)
