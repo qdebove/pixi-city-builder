@@ -3,6 +3,7 @@ import { CELL_SIZE, PersonRole } from '../types/types';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { Person } from './Person';
+import { TickContext } from './SimulationClock';
 
 export class PeopleManager {
   private app: Application;
@@ -10,7 +11,7 @@ export class PeopleManager {
   private buildingManager: BuildingManager;
 
   private people: Person[] = [];
-  private lastSpawnTime = performance.now();
+  private elapsedSinceSpawn = 0;
   private readonly SPAWN_INTERVAL_MS = 4000;
 
   private lastTileKey = new Map<Person, string>();
@@ -25,22 +26,24 @@ export class PeopleManager {
     this.buildingManager = buildingManager;
   }
 
-  public update(now: number) {
+  public update(ctx: TickContext) {
     this.people = this.people.filter((p) => !p.destroyed);
 
-    if (now - this.lastSpawnTime >= this.SPAWN_INTERVAL_MS) {
+    this.elapsedSinceSpawn += ctx.deltaMs;
+
+    while (this.elapsedSinceSpawn >= this.SPAWN_INTERVAL_MS) {
       if (this.trySpawnPerson()) {
-        this.lastSpawnTime = now;
+        this.elapsedSinceSpawn -= this.SPAWN_INTERVAL_MS;
+      } else {
+        // avoid tight loop when spawn conditions unmet
+        this.elapsedSinceSpawn = 0;
+        break;
       }
     }
 
     for (const p of this.people) {
       this.maybeTryEnterAdjacentBuilding(p);
     }
-  }
-
-  public shiftTimers(deltaMs: number) {
-    this.lastSpawnTime += deltaMs;
   }
 
   public pauseAll() {
