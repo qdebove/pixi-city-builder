@@ -1,4 +1,4 @@
-import { Application, FederatedPointerEvent, Point } from 'pixi.js';
+import { Application, Assets, FederatedPointerEvent, Point } from 'pixi.js';
 import {
   BuildingState,
   BuildingType,
@@ -72,6 +72,8 @@ export class Game {
     });
     container.appendChild(this.app.canvas);
 
+    await this.preloadAssets();
+
     // ✅ Forcer le curseur en croix sur le canvas lui-même
     this.app.canvas.style.cursor = 'crosshair';
 
@@ -88,6 +90,19 @@ export class Game {
     this.app.ticker.add(this.onFrameUpdate);
 
     this.emitState();
+  }
+
+  private async preloadAssets() {
+    const assets = Object.values(BASE_ASSET_REGISTRY.assets);
+
+    assets.forEach((asset) => {
+      if (!Assets.exists(asset.id)) {
+        Assets.add({ alias: asset.id, src: asset.uri });
+      }
+    });
+
+    const aliases = assets.map((asset) => asset.id);
+    await Assets.load(aliases);
   }
 
   private onFrameUpdate = () => {
