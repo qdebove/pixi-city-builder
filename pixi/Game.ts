@@ -15,6 +15,9 @@ import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
 import { SelectedPersonSnapshot } from '@/types/ui';
 import { EventSystem } from './EventSystem';
 import { ActiveEventSnapshot } from './EventSystem';
+import { TimeSnapshot, TimeSystem } from './TimeSystem';
+import { DebtSnapshot, DebtSystem } from './DebtSystem';
+import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
 
 export interface GameUIState {
   money: number;
@@ -29,6 +32,8 @@ export interface GameUIState {
   reputation: ReputationSnapshot;
   zoom: number;
   activeEvents: ActiveEventSnapshot[];
+  time: TimeSnapshot;
+  debt: DebtSnapshot;
 }
 
 export class Game {
@@ -37,6 +42,8 @@ export class Game {
   private buildingManager: BuildingManager;
   private peopleManager: PeopleManager;
   private simulation: SimulationClock;
+  private timeSystem: TimeSystem;
+  private debtSystem: DebtSystem;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
@@ -63,6 +70,8 @@ export class Game {
     this.reputationSystem = new ReputationSystem();
     this.skillEngine = new SkillEngine();
     this.eventSystem = new EventSystem();
+    this.timeSystem = new TimeSystem(TIME_SETTINGS);
+    this.debtSystem = new DebtSystem(DEBT_SETTINGS);
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -123,6 +132,14 @@ export class Game {
   private onSimulationTick = (ctx: TickContext) => {
     const eventModifiers = this.eventSystem.update(ctx);
     this.activeEvents = eventModifiers.activeEvents;
+
+    const timeAdvance = this.timeSystem.advance(ctx.deltaMs);
+    if (timeAdvance.monthsAdvanced > 0) {
+      for (let i = 0; i < timeAdvance.monthsAdvanced; i++) {
+        const payment = this.debtSystem.processNewMonth();
+        this.money -= payment;
+      }
+    }
 
     this.buildingManager.getBuildings().forEach((building) => {
       const skillSnapshot = building.type.isRoad
@@ -365,6 +382,8 @@ export class Game {
       reputation: this.reputationSystem.snapshot(),
       zoom: this.worldView.getScale(),
       activeEvents: this.activeEvents,
+      time: this.timeSystem.snapshotState(),
+      debt: this.debtSystem.snapshotState(),
     });
   }
 
