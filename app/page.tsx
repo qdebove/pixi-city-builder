@@ -53,6 +53,7 @@ const Home: React.FC = () => {
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
   );
+  const [activeInfoCard, setActiveInfoCard] = useState<string | null>(null);
   const [panelPosition, setPanelPosition] = useState({ x: 12, y: 12 });
   const dragStateRef = useRef<
     | {
@@ -345,9 +346,9 @@ const Home: React.FC = () => {
   ];
 
   return (
-    <div className="relative h-screen w-screen bg-slate-900 text-white select-none overflow-hidden">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-slate-900 text-white select-none">
       {/* Barre globale en haut */}
-      <div className="z-20 bg-slate-900/95 border-b border-slate-800 px-4 py-3">
+      <div className="relative z-30 border-b border-slate-800 bg-slate-900/95 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold text-sky-400">
@@ -368,7 +369,7 @@ const Home: React.FC = () => {
                 <span aria-hidden className="text-slate-300">▾</span>
               </button>
               {isMenuDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl">
+                <div className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl">
                   {menuOptions.map((option) => (
                     <button
                       key={option.id}
@@ -414,7 +415,11 @@ const Home: React.FC = () => {
 
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {infoCards.map((card) => (
-            <div key={card.id} className="group relative">
+            <div
+              key={card.id}
+              className="group relative"
+              onMouseLeave={() => setActiveInfoCard(null)}
+            >
               <div
                 className={`rounded-xl border ${accentClasses[card.accent]} bg-slate-900/80 px-4 py-3 shadow-lg`}
               >
@@ -429,14 +434,43 @@ const Home: React.FC = () => {
                     <p className="text-xs text-slate-300">{card.sub}</p>
                   </div>
                   <div className="flex items-center gap-1 text-slate-400">
-                    <span className="text-lg leading-none">⋯</span>
-                    <span className="rounded-full border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase">
+                    <button
+                      type="button"
+                      aria-label={`Plus d'options pour ${card.title}`}
+                      className="rounded-md border border-transparent px-1 py-0.5 text-lg leading-none transition hover:border-slate-600 hover:bg-slate-800/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
+                      onMouseEnter={() => setActiveInfoCard(card.id)}
+                      onFocus={() => setActiveInfoCard(card.id)}
+                      onClick={() =>
+                        setActiveInfoCard((current) =>
+                          current === card.id ? null : card.id
+                        )
+                      }
+                    >
+                      ⋯
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase transition hover:border-sky-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
+                      onMouseEnter={() => setActiveInfoCard(card.id)}
+                      onFocus={() => setActiveInfoCard(card.id)}
+                      onClick={() =>
+                        setActiveInfoCard((current) =>
+                          current === card.id ? null : card.id
+                        )
+                      }
+                    >
                       infos
-                    </span>
+                    </button>
                   </div>
                 </div>
               </div>
-              <div className="pointer-events-none absolute left-0 right-0 translate-y-1 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:translate-y-2 group-hover:opacity-100">
+              <div
+                className={`absolute left-0 right-0 translate-y-1 opacity-0 transition-all duration-150 ${
+                  activeInfoCard === card.id
+                    ? 'pointer-events-auto translate-y-2 opacity-100'
+                    : 'pointer-events-none'
+                }`}
+              >
                 <div className="mt-1 rounded-lg border border-slate-700/80 bg-slate-900/95 px-3 py-2 text-[12px] text-slate-200 shadow-xl">
                   {card.extras.map((extra, index) => (
                     <p
@@ -457,7 +491,7 @@ const Home: React.FC = () => {
       <EventTicker events={gameState.activeEvents} />
 
       {/* Layout principal */}
-      <div className="relative h-[calc(100vh-40px)] w-full pt-0">
+      <div className="relative flex-1 pt-0">
         <div className="absolute inset-0 bg-slate-950">
           <div
             ref={gameContainerRef}
