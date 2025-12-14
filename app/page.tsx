@@ -53,6 +53,7 @@ const Home: React.FC = () => {
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
   );
+  const [activeInfoCard, setActiveInfoCard] = useState<string | null>(null);
   const [panelPosition, setPanelPosition] = useState({ x: 12, y: 12 });
   const dragStateRef = useRef<
     | {
@@ -66,10 +67,13 @@ const Home: React.FC = () => {
 
   const [menuTab, setMenuTab] = useState<MenuTab>('buildings');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuDropdownOpen, setIsMenuDropdownOpen] = useState(false);
+  const menuLauncherRef = useRef<HTMLDivElement | null>(null);
 
   const openMenu = (tab: MenuTab) => {
     setMenuTab(tab);
     setIsMenuOpen(true);
+    setIsMenuDropdownOpen(false);
   };
 
   const handleStateChange = useCallback((newState: GameUIState) => {
@@ -121,11 +125,6 @@ const Home: React.FC = () => {
       currency: 'EUR',
       maximumFractionDigits: 0,
     });
-
-  const formatClock = () => {
-    const hour = gameState.time.hour.toString().padStart(2, '0');
-    return `Mois ${gameState.time.month} • Jour ${gameState.time.day} • ${hour}:00`;
-  };
 
   const formatDebt = () =>
     `${formatMoney(gameState.debt.balance)} restantes`;
@@ -230,225 +229,270 @@ const Home: React.FC = () => {
     };
   }, [endDrag, handleDragMove]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuLauncherRef.current) return;
+      if (!menuLauncherRef.current.contains(event.target as Node)) {
+        setIsMenuDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const panelScale =
     gameState.zoom > 0
       ? Math.max(0.85, Math.min(1.1, 1 / gameState.zoom))
       : 1;
 
+  const menuOptions: { id: MenuTab; label: string; description: string }[] = [
+    {
+      id: 'buildings',
+      label: 'Bâtiments',
+      description: 'Consulter le catalogue complet et les plans débloqués.',
+    },
+    {
+      id: 'skills',
+      label: 'Compétences',
+      description: 'Arbres, talents et traits clés.',
+    },
+    {
+      id: 'recruitment',
+      label: 'Recrutement',
+      description: 'Profils disponibles et pré-recrutement.',
+    },
+    {
+      id: 'people',
+      label: 'Personnes',
+      description: 'Référentiel des visiteurs et du personnel.',
+    },
+  ];
+
+  type AccentTone = 'amber' | 'sky' | 'emerald' | 'violet' | 'rose';
+  const accentClasses: Record<AccentTone, string> = {
+    amber: 'border-amber-500/60 shadow-amber-500/10',
+    sky: 'border-sky-500/60 shadow-sky-500/10',
+    emerald: 'border-emerald-500/60 shadow-emerald-500/10',
+    violet: 'border-violet-500/60 shadow-violet-500/10',
+    rose: 'border-rose-500/60 shadow-rose-500/10',
+  };
+
+  const totalHosted =
+    (gameState.occupantsByRole.visitor || 0) +
+    (gameState.occupantsByRole.staff || 0);
+  const movingCount =
+    (gameState.peopleByRole.visitor || 0) +
+    (gameState.peopleByRole.staff || 0);
+
+  const infoCards: {
+    id: string;
+    title: string;
+    main: string;
+    sub: string;
+    extras: string[];
+    accent: AccentTone;
+  }[] = [
+    {
+      id: 'finances',
+      title: 'Finances',
+      main: formatMoney(gameState.money),
+      sub: 'Trésorerie mobilisable',
+      extras: [
+        `Paiement du mois : ${formatMoney(
+          gameState.debt.lastPayment || DEBT_SETTINGS.minimumPayment
+        )}`,
+        `Dette restante : ${formatDebt()}`,
+        `Total remboursé : ${formatMoney(gameState.debt.totalPaid)}`,
+      ],
+      accent: 'amber',
+    },
+    {
+      id: 'calendrier',
+      title: 'Calendrier',
+      main: `Mois ${gameState.time.month} • Jour ${gameState.time.day}`,
+      sub: `${gameState.time.hour.toString().padStart(2, '0')}:00 local`,
+      extras: [
+        `Année ${gameState.time.year}`,
+        `Temps écoulé : ${(gameState.time.elapsedMs / 1000).toFixed(0)}s`,
+      ],
+      accent: 'sky',
+    },
+    {
+      id: 'population',
+      title: 'Population',
+      main: `${totalHosted.toLocaleString()} hébergés`,
+      sub: `${movingCount.toLocaleString()} en déplacement`,
+      extras: [
+        `Visiteurs hébergés : ${gameState.occupantsByRole.visitor.toLocaleString()}`,
+        `Personnel en poste : ${gameState.occupantsByRole.staff.toLocaleString()}`,
+        `Flux visiteurs : ${gameState.peopleByRole.visitor.toLocaleString()}`,
+        `Flux personnel : ${gameState.peopleByRole.staff.toLocaleString()}`,
+      ],
+      accent: 'emerald',
+    },
+    {
+      id: 'reputation',
+      title: 'Réputation',
+      main: `${gameState.reputation.local.toFixed(1)} locale`,
+      sub: 'Indicateur dominant',
+      extras: [
+        `Premium : ${gameState.reputation.premium.toFixed(1)}`,
+        `Pression régulation : ${gameState.reputation.regulatoryPressure.toFixed(1)}`,
+        `Production totale : ${gameState.totalClicks.toLocaleString()} ticks`,
+      ],
+      accent: 'violet',
+    },
+  ];
+
   return (
-    <div className="relative h-screen w-screen bg-slate-900 text-white select-none overflow-hidden">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-slate-900 text-white select-none">
       {/* Barre globale en haut */}
-      <div className="z-20 flex flex-wrap items-center justify-between gap-4 px-4 py-2 bg-slate-900/95 border-b border-slate-800">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-bold text-sky-400">
-            Mini City Tycoon
-          </span>
-          <span className="text-xs text-slate-400">
-            Ticks de production :{' '}
-            {gameState.totalClicks.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-6 text-sm">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Banque
+      <div className="relative z-30 border-b border-slate-800 bg-slate-900/95 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold text-sky-400">
+              Mini City Tycoon
             </span>
-            <span className="font-mono font-semibold text-amber-300">
-              {formatMoney(gameState.money)}
+            <span className="text-xs text-slate-400">
+              Table de bord synthétique
             </span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Calendrier local
-            </span>
-            <span className="font-mono font-semibold text-cyan-200">
-              {formatClock()}
-            </span>
-          </div>
-
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Dette mensuelle
-            </span>
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono font-semibold text-rose-200">
-                {formatMoney(gameState.debt.lastPayment || DEBT_SETTINGS.minimumPayment)}
-              </span>
-              <span className="text-[11px] text-slate-400">due ce mois</span>
-            </div>
-            <span className="text-[11px] text-slate-400">
-              Solde : <span className="font-mono text-slate-100">{formatDebt()}</span>
-            </span>
-          </div>
-
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Flux en déplacement
-            </span>
-            <div className="flex gap-3 text-[13px]">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-pink-300" />
-                <span className="font-mono text-pink-200">
-                  {gameState.peopleByRole.visitor}
-                </span>
-                <span className="text-slate-400 text-[11px]">visiteurs</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-sky-300" />
-                <span className="font-mono text-sky-200">
-                  {gameState.peopleByRole.staff}
-                </span>
-                <span className="text-slate-400 text-[11px]">personnel</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="text-[10px] uppercase text-slate-400">
-              Occupation des bâtiments
-            </span>
-            <div className="flex gap-3 flex-wrap">
-              {BUILDING_TYPES.filter((t) => !t.isRoad).map(
-                (type) => (
-                  <div key={type.id} className="flex items-center gap-1">
-                    <span
-                      className="inline-block w-3 h-3 rounded-sm"
-                      style={{
-                        backgroundColor: `#${type.color
-                          .toString(16)
-                          .padStart(6, '0')}`,
-                      }}
-                    />
-                    <span className="text-slate-300">
-                      {type.name}:{' '}
-                      <span className="font-mono text-emerald-300">
-                        {gameState.occupantsByType[type.id] || 0}
-                      </span>
-                    </span>
-                  </div>
-                )
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative" ref={menuLauncherRef}>
+              <button
+                onClick={() => setIsMenuDropdownOpen((current) => !current)}
+                className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-sky-500 hover:text-sky-100"
+              >
+                Menu principal
+                <span aria-hidden className="text-slate-300">▾</span>
+              </button>
+              {isMenuDropdownOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl">
+                  {menuOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      className="w-full rounded-md px-2 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                      onClick={() => openMenu(option.id)}
+                    >
+                      <p className="font-semibold text-white">{option.label}</p>
+                      <p className="text-[12px] text-slate-300">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
 
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Réputation
-            </span>
-            <div className="flex gap-3 text-[13px]">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-300" />
-                <span className="font-mono text-emerald-200">
-                  {gameState.reputation.local.toFixed(1)}
-                </span>
-                <span className="text-slate-400 text-[11px]">locale</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-300" />
-                <span className="font-mono text-amber-200">
-                  {gameState.reputation.premium.toFixed(1)}
-                </span>
-                <span className="text-slate-400 text-[11px]">premium</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-300" />
-                <span className="font-mono text-red-200">
-                  {gameState.reputation.regulatoryPressure.toFixed(1)}
-                </span>
-                <span className="text-slate-400 text-[11px]">régulation</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-400">
-              Répartition globale
-            </span>
-            <div className="flex gap-3 text-[13px]">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-pink-300" />
-                <span className="font-mono text-pink-200">
-                  {gameState.occupantsByRole.visitor}
-                </span>
-                <span className="text-slate-400 text-[11px]">visiteurs hébergés</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-sky-300" />
-                <span className="font-mono text-sky-200">
-                  {gameState.occupantsByRole.staff}
-                </span>
-                <span className="text-slate-400 text-[11px]">personnel en poste</span>
-              </span>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePause}
+                disabled={gameState.isPaused}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
+                  ${
+                    gameState.isPaused
+                      ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                      : 'bg-rose-600 hover:bg-rose-500'
+                  }`}
+              >
+                ⏸ Pause
+              </button>
+              <button
+                onClick={handleResume}
+                disabled={!gameState.isPaused}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
+                  ${
+                    !gameState.isPaused
+                      ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
+              >
+                ▶ Reprendre
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => openMenu('buildings')}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
-          >
-            Bureau d&apos;urbanisme
-          </button>
-          <button
-            onClick={() => openMenu('skills')}
-            className="rounded-lg bg-sky-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-700"
-          >
-            Arbres de compétences
-          </button>
-          <button
-            onClick={() => openMenu('people')}
-            className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
-          >
-            Fiches personnes
-          </button>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handlePause}
-            disabled={gameState.isPaused}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition 
-              ${
-                gameState.isPaused
-                  ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                  : 'bg-rose-600 hover:bg-rose-500'
-              }`}
-          >
-            ⏸ Pause
-          </button>
-          <button
-            onClick={handleResume}
-            disabled={!gameState.isPaused}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
-              ${
-                !gameState.isPaused
-                  ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-          >
-            ▶ Reprendre
-          </button>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {infoCards.map((card) => (
+            <div
+              key={card.id}
+              className="group relative"
+              onMouseLeave={() => setActiveInfoCard(null)}
+            >
+              <div
+                className={`rounded-xl border ${accentClasses[card.accent]} bg-slate-900/80 px-4 py-3 shadow-lg`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] uppercase text-slate-400">
+                      {card.title}
+                    </p>
+                    <p className="text-lg font-semibold text-white">
+                      {card.main}
+                    </p>
+                    <p className="text-xs text-slate-300">{card.sub}</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-slate-400">
+                    <button
+                      type="button"
+                      aria-label={`Plus d'options pour ${card.title}`}
+                      className="rounded-md border border-transparent px-1 py-0.5 text-lg leading-none transition hover:border-slate-600 hover:bg-slate-800/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
+                      onMouseEnter={() => setActiveInfoCard(card.id)}
+                      onFocus={() => setActiveInfoCard(card.id)}
+                      onClick={() =>
+                        setActiveInfoCard((current) =>
+                          current === card.id ? null : card.id
+                        )
+                      }
+                    >
+                      ⋯
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase transition hover:border-sky-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
+                      onMouseEnter={() => setActiveInfoCard(card.id)}
+                      onFocus={() => setActiveInfoCard(card.id)}
+                      onClick={() =>
+                        setActiveInfoCard((current) =>
+                          current === card.id ? null : card.id
+                        )
+                      }
+                    >
+                      infos
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`absolute left-0 right-0 translate-y-1 opacity-0 transition-all duration-150 ${
+                  activeInfoCard === card.id
+                    ? 'pointer-events-auto translate-y-2 opacity-100'
+                    : 'pointer-events-none'
+                }`}
+              >
+                <div className="mt-1 rounded-lg border border-slate-700/80 bg-slate-900/95 px-3 py-2 text-[12px] text-slate-200 shadow-xl">
+                  {card.extras.map((extra, index) => (
+                    <p
+                      key={`${card.id}-${index}`}
+                      className="flex items-start gap-2 leading-relaxed"
+                    >
+                      <span className="text-slate-500">↳</span>
+                      <span>{extra}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       <EventTicker events={gameState.activeEvents} />
 
       {/* Layout principal */}
-      <div className="flex h-[calc(100vh-40px)] w-full pt-0">
-        <div className="w-[300px] shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto">
-          <BuildingSidebar
-            money={gameState.money}
-            totalClicks={gameState.totalClicks}
-            onSelect={handleSelectBuildingToBuild}
-            draggingMode={draggingType}
-            onOpenMenu={openMenu}
-          />
-        </div>
-
-        <div className="relative grow bg-slate-950">
+      <div className="relative flex-1 pt-0">
+        <div className="absolute inset-0 bg-slate-950">
           <div
             ref={gameContainerRef}
             className="absolute inset-0 cursor-crosshair"
@@ -487,6 +531,18 @@ const Home: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
+          <div className="pointer-events-auto mx-auto max-w-6xl">
+            <BuildingSidebar
+              money={gameState.money}
+              totalClicks={gameState.totalClicks}
+              onSelect={handleSelectBuildingToBuild}
+              draggingMode={draggingType}
+              onOpenMenu={openMenu}
+            />
+          </div>
         </div>
       </div>
 

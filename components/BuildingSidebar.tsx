@@ -3,7 +3,7 @@ import {
   BuildingType,
   calculateIncome,
 } from '@/types/types';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { MenuTab } from './MainMenuOverlay';
 
 interface SidebarProps {
@@ -14,10 +14,7 @@ interface SidebarProps {
   onOpenMenu: (tab: MenuTab) => void;
 }
 
-const CATEGORY_LABELS: Record<
-  BuildingType['category'],
-  string
-> = {
+const CATEGORY_LABELS: Record<BuildingType['category'], string> = {
   housing: 'Habitations',
   commerce: 'Commerces',
   industry: 'Industries',
@@ -29,158 +26,148 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
   totalClicks,
   onSelect,
   draggingMode,
-  onOpenMenu
+  onOpenMenu,
 }) => {
   const [showAffordableOnly, setShowAffordableOnly] = useState(false);
 
-  const categories = Array.from(
-    new Set(BUILDING_TYPES.map((t) => t.category))
+  const grouped = useMemo(
+    () =>
+      Array.from(new Set(BUILDING_TYPES.map((t) => t.category)))
+        .map((cat) => {
+          const items = BUILDING_TYPES
+            .filter((t) => t.category === cat)
+            .filter((type) => (showAffordableOnly ? money >= type.cost : true))
+            .sort((a, b) => a.cost - b.cost);
+
+          return {
+            id: cat,
+            label: CATEGORY_LABELS[cat],
+            items,
+          };
+        })
+        .filter((group) => group.items.length > 0),
+    [money, showAffordableOnly]
   );
 
-  const grouped = categories.map((cat) => ({
-    id: cat,
-    label: CATEGORY_LABELS[cat],
-    items: BUILDING_TYPES
-      .filter((t) => t.category === cat)
-      .sort((a, b) => a.cost - b.cost),
-  }));
-
   return (
-    <aside className="w-full shrink-0 bg-slate-800 flex flex-col">
-      <h1 className="text-xl font-bold text-sky-400 uppercase tracking-wider mb-2">
-        Mini City Tycoon
-      </h1>
+    <aside className="w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 shadow-[0_-6px_20px_rgba(0,0,0,0.45)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-3">
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">Production</span>
+            <span className="font-mono text-amber-300 text-xs">
+              {totalClicks.toLocaleString()} ticks
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">Catalogue</span>
+            <div className="flex gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => onOpenMenu('buildings')}
+                className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-semibold text-white hover:border-sky-500 hover:text-sky-100"
+              >
+                Bibliothèque
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenMenu('skills')}
+                className="rounded-md border border-violet-700 bg-violet-800 px-2 py-1 font-semibold text-white hover:border-violet-500"
+              >
+                Compétences
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <div className="text-xs text-slate-400 mb-3">
-        Ticks de production :{' '}
-        <span className="font-mono text-amber-400">
-          {totalClicks.toLocaleString()}
-        </span>
+        <label className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/70 px-3 py-2 text-[11px] text-slate-200">
+          <input
+            type="checkbox"
+            className="accent-sky-500"
+            checked={showAffordableOnly}
+            onChange={(e) => setShowAffordableOnly(e.target.checked)}
+          />
+          Abordables uniquement
+        </label>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          type="button"
-          onClick={() => onOpenMenu('buildings')}
-          className="rounded-lg bg-slate-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-slate-600 transition"
-        >
-          Bibliothèque
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenMenu('skills')}
-          className="rounded-lg bg-violet-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-violet-600 transition"
-        >
-          Compétences
-        </button>
-      </div>
-
-      <label className="flex items-center gap-2 text-xs mb-4">
-        <input
-          type="checkbox"
-          className="accent-sky-500"
-          checked={showAffordableOnly}
-          onChange={(e) => setShowAffordableOnly(e.target.checked)}
-        />
-        Afficher uniquement les bâtiments abordables
-      </label>
-
-      <h2 className="text-sm text-slate-400 uppercase font-semibold border-b border-slate-700 pb-1 mb-3">
-        Constructions
-      </h2>
-
-      <div className="flex flex-col gap-2">
-        {grouped.map((group) => {
-          if (group.items.length === 0) return null;
-
-          return (
-            <details
+      <div className="mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-track-slate-900 scrollbar-thumb-slate-700">
+        <div className="flex min-w-full gap-3 px-4 pb-1">
+          {grouped.map((group) => (
+            <div
               key={group.id}
-              className="bg-slate-900/60 border border-slate-700 rounded-lg"
-              open={false}
+              className="min-w-[280px] flex-shrink-0 rounded-xl border border-slate-700 bg-slate-800/80"
             >
-              <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-200 flex items-center justify-between">
-                <span>{group.label}</span>
-              </summary>
+              <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+                <span className="text-[12px] font-semibold uppercase text-slate-200">
+                  {group.label}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {group.items.length} plans
+                </span>
+              </div>
 
-              <div className="px-3 pb-2 pt-1 flex flex-col gap-2">
-                {group.items
-                  .filter((type) =>
-                    showAffordableOnly ? money >= type.cost : true
-                  )
-                  .map((type) => {
-                    const isDisabled = money < type.cost;
-                    const isActive = draggingMode?.id === type.id;
-                    const handleClick = () => {
-                      if (isDisabled) return;
-                      onSelect(isActive ? null : type);
-                    };
+              <div className="flex flex-col gap-2 p-2">
+                {group.items.map((type) => {
+                  const isDisabled = money < type.cost;
+                  const isActive = draggingMode?.id === type.id;
+                  const handleClick = () => {
+                    if (isDisabled) return;
+                    onSelect(isActive ? null : type);
+                  };
 
-                    const baseGain = calculateIncome(type, 1);
-                    const periodSec =
-                      type.baseIntervalMs > 0
-                        ? (type.baseIntervalMs / 1000).toFixed(2)
-                        : null;
+                  const baseGain = calculateIncome(type, 1);
+                  const periodSec =
+                    type.baseIntervalMs > 0
+                      ? (type.baseIntervalMs / 1000).toFixed(2)
+                      : null;
 
-                    return (
-                      <div
-                        key={type.id}
-                        className={`
-                          flex items-center p-2 rounded-lg cursor-pointer transition duration-150 ease-in-out 
-                          ${
-                            isDisabled
-                              ? 'opacity-50 grayscale cursor-not-allowed'
-                              : 'bg-slate-700 hover:bg-slate-600'
-                          }
-                          ${
-                            isActive
-                              ? 'ring-2 ring-sky-400 bg-sky-900/40'
-                              : ''
-                          }
-                        `}
-                        onClick={handleClick}
-                      >
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={handleClick}
+                      className={`flex items-center justify-between gap-3 rounded-lg border px-2 py-2 text-left transition duration-150 ${
+                        isDisabled
+                          ? 'cursor-not-allowed border-slate-800/70 bg-slate-900/60 text-slate-500'
+                          : 'border-slate-700 bg-slate-900/70 hover:border-sky-500 hover:bg-slate-800/80'
+                      } ${isActive ? 'ring-2 ring-sky-400 bg-sky-900/30' : ''}`}
+                      disabled={isDisabled}
+                    >
+                      <div className="flex items-center gap-2">
                         <div
-                          className="w-7 h-7 rounded mr-3 shrink-0"
+                          className="h-8 w-8 rounded-md border border-slate-700"
                           style={{
-                            backgroundColor: `#${type.color
-                              .toString(16)
-                              .padStart(6, '0')}`,
+                            backgroundColor: `#${type.color.toString(16).padStart(6, '0')}`,
                           }}
-                        ></div>
+                        />
                         <div className="flex flex-col text-xs">
-                          <span className="font-semibold text-sm">
-                            {type.name}
-                          </span>
-                          <span className="text-slate-300">
+                          <span className="text-sm font-semibold text-white">{type.name}</span>
+                          <span className="text-[11px] text-slate-300">
                             Coût : {type.cost}€
                             {!type.isRoad && periodSec && (
                               <>
                                 {' '}
-                                | Gain base : {baseGain}€ / tick •{' '}
-                                {periodSec}s
+                                • Gain {baseGain}€ / {periodSec}s
                               </>
                             )}
                           </span>
                         </div>
                       </div>
-                    );
-                  })}
+                      <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-200">
+                        {type.isRoad ? 'Route' : 'Exploitable'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </details>
-          );
-        })}
+            </div>
+          ))}
+        </div>
       </div>
 
-      
-      <div className="mt-auto pt-4 text-xs text-slate-500 border-t border-slate-700">
-        <strong>Contrôles :</strong>
-        <br />
-        🖱️ Clic Gauche : Poser / Sélectionner
-        <br />
-        🖱️ Clic Droit : Annuler / Déplacer caméra
-        <br />
-        🔍 Molette : Zoomer / Dézoomer
+      <div className="border-t border-slate-800 px-4 py-2 text-[11px] text-slate-400">
+        <span className="font-semibold text-slate-200">Contrôles</span> : 🖱️ Gauche = Poser / Sélectionner • 🖱️ Droit = Annuler / Caméra • 🔍 Molette = Zoom
       </div>
     </aside>
   );

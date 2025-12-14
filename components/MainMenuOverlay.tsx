@@ -68,11 +68,11 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
         onClick={onClose}
       />
       <section className="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/95 shadow-2xl">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
-            <div className="flex flex-col">
-              <p className="text-xs uppercase text-slate-400">Bureau d’urbanisme</p>
-              <h2 className="text-lg font-semibold text-white">Navigation dédiée</h2>
-            </div>
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+          <div className="flex flex-col">
+            <p className="text-xs uppercase text-slate-400">Menu principal</p>
+            <h2 className="text-lg font-semibold text-white">Accès aux sous-menus</h2>
+          </div>
           <button
             onClick={onClose}
             className="rounded-full bg-slate-800 px-3 py-1 text-sm font-semibold text-slate-200 hover:bg-slate-700"

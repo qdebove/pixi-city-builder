@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   SkillNode,
   SkillTree,
@@ -118,46 +118,51 @@ const SkillTimeline: React.FC<{
           tone={accent === 'amber' ? 'amber' : 'sky'}
         />
       </div>
-      <ul className="relative space-y-3">
-        <span className={`absolute left-[11px] top-3 bottom-3 w-px ${accentDot} bg-opacity-30`} />
-        {entries.map((entry, index) => (
-          <li key={entry.id} className="relative pl-8">
-            <span
-              className={`absolute left-0 top-2 h-3 w-3 rounded-full shadow ${accentDot}`}
-            />
-            <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Palier {index + 1}</span>
-                  <NodeBadge label={entry.badge} tone="violet" />
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-full items-stretch gap-3">
+          {entries.map((entry, index) => (
+            <div key={entry.id} className="relative min-w-[220px] flex-1">
+              {index < entries.length - 1 && (
+                <span
+                  className={`absolute left-[calc(100%-6px)] top-1/2 h-0.5 w-6 -translate-y-1/2 rounded-full ${accentDot}`}
+                />
+              )}
+              <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3 h-full flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Palier {index + 1}</span>
+                    <NodeBadge label={entry.badge} tone="violet" />
+                  </div>
+                  {entry.icon && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.icon}
+                      alt={entry.title}
+                      className="h-8 w-8 rounded-md border border-slate-700 bg-slate-800 object-cover"
+                    />
+                  )}
                 </div>
-                {entry.icon && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={entry.icon}
-                    alt={entry.title}
-                    className="h-8 w-8 rounded-md border border-slate-700 bg-slate-800 object-cover"
-                  />
+                <p className="text-sm font-semibold text-white">{entry.title}</p>
+                <p className="text-[12px] text-slate-300">{entry.subtitle}</p>
+                {entry.detail && (
+                  <p className="mt-1 text-[11px] text-amber-200/90 font-mono">
+                    {entry.detail}
+                  </p>
                 )}
               </div>
-              <p className="text-sm font-semibold text-white">{entry.title}</p>
-              <p className="text-[12px] text-slate-300">{entry.subtitle}</p>
-              {entry.detail && (
-                <p className="mt-1 text-[11px] text-amber-200/90 font-mono">
-                  {entry.detail}
-                </p>
-              )}
             </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      </div>
     </article>
   );
 };
 
 const workerTreeEntries = (trees: SkillTree[]): TimelineEntry[][] =>
   trees.map((tree) =>
-    Object.values(tree.nodes).map((node) => {
+    Object.values(tree.nodes)
+      .sort((a, b) => a.cost - b.cost)
+      .map((node) => {
       const effectDescription = node.effects
         .map(
           (effect) => `${effect.stat} ${effect.mode === 'additive' ? '+' : 'x'}${effect.value}`
@@ -219,6 +224,9 @@ export const SkillTreePreview: React.FC<SkillTreePreviewProps> = ({
   trees,
   traits,
 }) => {
+  const [activeTab, setActiveTab] = useState<
+    'buildings' | 'workers' | 'visitors' | 'traits'
+  >('buildings');
   const availableTrees = useMemo(
     () => trees ?? Object.values(SKILL_TREES),
     [trees]
@@ -237,29 +245,55 @@ export const SkillTreePreview: React.FC<SkillTreePreviewProps> = ({
 
   return (
     <div className="mt-4 space-y-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="space-y-3">
-          <p className="text-[12px] uppercase text-emerald-200 tracking-wide">Bâtiments</p>
-          <SkillTimeline
-            accent="emerald"
-            title="Feuilles de route par bâtiment"
-            subtitle="Passifs et talents dédiés"
-            entries={buildingTracks.flat()}
-          />
-        </div>
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-700/80 bg-slate-800/60 p-2">
+        {(
+          [
+            { id: 'buildings', label: 'Bâtiments', hint: 'Passifs et bonus' },
+            { id: 'workers', label: 'Travailleurs', hint: 'Arbres par poste' },
+            { id: 'visitors', label: 'Visiteurs', hint: 'Parcours narratifs' },
+            { id: 'traits', label: 'Traits', hint: 'Modificateurs globaux' },
+          ] as const
+        ).map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                isActive
+                  ? 'bg-violet-900/30 text-violet-100 border border-violet-500/70'
+                  : 'text-slate-200 border border-slate-700 hover:border-slate-500'
+              }`}
+            >
+              <div className="flex flex-col text-left leading-tight">
+                <span>{tab.label}</span>
+                <span className="text-[11px] font-normal text-slate-300">{tab.hint}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="space-y-3">
-          <p className="text-[12px] uppercase text-amber-200 tracking-wide">Personnages</p>
-          <SkillTimeline
-            accent="amber"
-            title="Destinées des visiteurs"
-            subtitle="Profils narratifs et préférences"
-            entries={visitorTracks}
-          />
-        </div>
+      {activeTab === 'buildings' && (
+        <SkillTimeline
+          accent="emerald"
+          title="Feuilles de route par bâtiment"
+          subtitle="Passifs et talents dédiés"
+          entries={buildingTracks.flat()}
+        />
+      )}
 
-        <div className="space-y-3">
-          <p className="text-[12px] uppercase text-violet-200 tracking-wide">Travailleurs</p>
+      {activeTab === 'visitors' && (
+        <SkillTimeline
+          accent="amber"
+          title="Destinées des visiteurs"
+          subtitle="Profils narratifs et préférences"
+          entries={visitorTracks}
+        />
+      )}
+
+      {activeTab === 'workers' && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {workerTracks.map((entries, index) => {
             const tree = availableTrees[index];
             const jobLabel = JOB_DEFINITIONS[tree.jobId]?.nameKey ?? tree.jobId;
@@ -277,39 +311,41 @@ export const SkillTreePreview: React.FC<SkillTreePreviewProps> = ({
             );
           })}
         </div>
-      </div>
+      )}
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wide mb-2">
-          Traits clés (loot d&apos;inspiration RPG)
-        </h4>
-        <ul className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          {availableTraits.map((trait) => {
-            const icon = resolveTraitIcon(trait);
-            return (
-              <li
-                key={trait.id}
-                className="flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/70 p-2"
-              >
-                {icon ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={icon}
-                    alt={trait.id}
-                    className="w-8 h-8 rounded-md"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-md bg-slate-700" />
-                )}
-                <div>
-                  <p className="text-sm font-semibold text-white">{trait.id}</p>
-                  <p className="text-[12px] text-slate-300">{trait.descriptionKey}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {activeTab === 'traits' && (
+        <div>
+          <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wide mb-2">
+            Traits clés (loot d&apos;inspiration RPG)
+          </h4>
+          <ul className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {availableTraits.map((trait) => {
+              const icon = resolveTraitIcon(trait);
+              return (
+                <li
+                  key={trait.id}
+                  className="flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/70 p-2"
+                >
+                  {icon ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={icon}
+                      alt={trait.id}
+                      className="w-8 h-8 rounded-md"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-md bg-slate-700" />
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold text-white">{trait.id}</p>
+                    <p className="text-[12px] text-slate-300">{trait.descriptionKey}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
