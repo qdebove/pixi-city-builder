@@ -54,9 +54,15 @@ const Home: React.FC = () => {
     null
   );
   const [panelPosition, setPanelPosition] = useState({ x: 12, y: 12 });
-  const dragStateRef = useRef<{ offsetX: number; offsetY: number } | null>(
-    null
-  );
+  const dragStateRef = useRef<
+    | {
+        startX: number;
+        startY: number;
+        panelX: number;
+        panelY: number;
+      }
+    | null
+  >(null);
 
   const [menuTab, setMenuTab] = useState<MenuTab>('buildings');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -173,7 +179,7 @@ const Home: React.FC = () => {
 
   const handleDragMove = useCallback((event: PointerEvent) => {
     if (!dragStateRef.current || !panelRef.current) return;
-    const { offsetX, offsetY } = dragStateRef.current;
+    const { startX, startY, panelX, panelY } = dragStateRef.current;
     const width = panelRef.current.offsetWidth;
     const height = panelRef.current.offsetHeight;
     const maxX = Math.max(8, window.innerWidth - width - 8);
@@ -181,9 +187,12 @@ const Home: React.FC = () => {
     const clampValue = (value: number, max: number) =>
       Math.min(Math.max(value, 8), max);
 
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+
     setPanelPosition({
-      x: clampValue(event.clientX - offsetX, maxX),
-      y: clampValue(event.clientY - offsetY, maxY),
+      x: clampValue(panelX + deltaX, maxX),
+      y: clampValue(panelY + deltaY, maxY),
     });
   }, []);
 
@@ -195,15 +204,16 @@ const Home: React.FC = () => {
   const startDrag = useCallback(
     (event: React.PointerEvent) => {
       if (!panelRef.current) return;
-      const rect = panelRef.current.getBoundingClientRect();
       dragStateRef.current = {
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
+        startX: event.clientX,
+        startY: event.clientY,
+        panelX: panelPosition.x,
+        panelY: panelPosition.y,
       };
       window.addEventListener('pointermove', handleDragMove);
       window.addEventListener('pointerup', endDrag, { once: true });
     },
-    [endDrag, handleDragMove]
+    [endDrag, handleDragMove, panelPosition.x, panelPosition.y]
   );
 
   useEffect(() => {

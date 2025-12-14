@@ -388,6 +388,7 @@ export class Game {
   }
 
   public destroy() {
+    this.worldView.destroy();
     this.app.destroy(true, { children: true });
   }
 }
