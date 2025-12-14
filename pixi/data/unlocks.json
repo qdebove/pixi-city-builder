@@ -1,0 +1,22 @@
+[
+  {
+    "id": "house",
+    "requiredClicks": 0,
+    "description": "Disponible dès le lancement pour héberger les premiers visiteurs."
+  },
+  {
+    "id": "shop",
+    "requiredClicks": 120,
+    "description": "Se débloque après quelques cycles économiques pour simuler une attractivité minimale."
+  },
+  {
+    "id": "factory",
+    "requiredClicks": 360,
+    "description": "Plans industriels réservés aux villes déjà actives et stables."
+  },
+  {
+    "id": "road",
+    "requiredClicks": 0,
+    "description": "Toujours disponible pour structurer le réseau orthogonal."
+  }
+]

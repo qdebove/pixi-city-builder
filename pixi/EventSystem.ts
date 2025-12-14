@@ -1,24 +1,7 @@
+import { DynamicEventDefinition, EventEffect } from '@/types/events';
 import { ReputationSnapshot } from './ReputationSystem';
 import { TickContext } from './SimulationClock';
-
-export type EventSeverity = 'info' | 'warning' | 'critical';
-
-export interface EventEffect {
-  incomeMultiplier?: number;
-  spawnIntervalMultiplier?: number;
-  reputationDeltaPerSecond?: Partial<ReputationSnapshot>;
-  moneyDeltaPerTick?: number;
-}
-
-export interface DynamicEventDefinition {
-  id: string;
-  title: string;
-  description: string;
-  durationMs: number;
-  severity: EventSeverity;
-  weight: number;
-  effects: EventEffect;
-}
+import { getEventDefinitions } from './data/events';
 
 export interface ActiveEventSnapshot {
   id: string;
@@ -43,71 +26,17 @@ interface ActiveEventState {
   remainingMs: number;
 }
 
-const EVENT_LIBRARY: DynamicEventDefinition[] = [
-  {
-    id: 'visitor-surge',
-    title: 'Afflux imprévu',
-    description:
-      'Une convention locale fait grimper le trafic : le flux de visiteurs augmente fortement.',
-    durationMs: 14000,
-    severity: 'info',
-    weight: 1.2,
-    effects: {
-      spawnIntervalMultiplier: 0.55,
-      reputationDeltaPerSecond: { local: 0.35 },
-    },
-  },
-  {
-    id: 'regulatory-inspection',
-    title: 'Contrôle éclair',
-    description:
-      'Une inspection rapide impose des standards renforcés. Les revenus baissent légèrement.',
-    durationMs: 12000,
-    severity: 'warning',
-    weight: 1,
-    effects: {
-      incomeMultiplier: 0.82,
-      reputationDeltaPerSecond: { regulatoryPressure: 0.65 },
-    },
-  },
-  {
-    id: 'vip-gala',
-    title: 'Gala VIP',
-    description:
-      'Un gala premium attire des clients à fort pouvoir d’achat et améliore la réputation premium.',
-    durationMs: 10000,
-    severity: 'info',
-    weight: 0.8,
-    effects: {
-      incomeMultiplier: 1.25,
-      reputationDeltaPerSecond: { premium: 0.9 },
-    },
-  },
-  {
-    id: 'service-outage',
-    title: 'Incident technique',
-    description:
-      'Une partie de l’infrastructure est en maintenance, ralentissant la génération de revenus.',
-    durationMs: 9000,
-    severity: 'critical',
-    weight: 0.6,
-    effects: {
-      incomeMultiplier: 0.65,
-      reputationDeltaPerSecond: { local: -0.5 },
-      moneyDeltaPerTick: -2,
-    },
-  },
-];
-
 export class EventSystem {
   private readonly minIntervalMs = 11000;
   private readonly maxIntervalMs = 18000;
   private readonly maxConcurrentEvents = 2;
 
+  private readonly eventLibrary: DynamicEventDefinition[];
   private activeEvents: ActiveEventState[] = [];
   private nextEventAtMs: number;
 
   constructor() {
+    this.eventLibrary = getEventDefinitions();
     this.nextEventAtMs = this.computeNextEventTarget(0);
   }
 
@@ -193,18 +122,18 @@ export class EventSystem {
   }
 
   private pickWeightedEvent(): DynamicEventDefinition | null {
-    const totalWeight = EVENT_LIBRARY.reduce((sum, evt) => sum + evt.weight, 0);
+    const totalWeight = this.eventLibrary.reduce((sum, evt) => sum + evt.weight, 0);
     if (totalWeight <= 0) return null;
 
     const roll = Math.random() * totalWeight;
     let cursor = 0;
 
-    for (const evt of EVENT_LIBRARY) {
+    for (const evt of this.eventLibrary) {
       cursor += evt.weight;
       if (roll <= cursor) return evt;
     }
 
-    return EVENT_LIBRARY[EVENT_LIBRARY.length - 1] ?? null;
+    return this.eventLibrary[this.eventLibrary.length - 1] ?? null;
   }
 
   private computeNextEventTarget(nowMs: number): number {

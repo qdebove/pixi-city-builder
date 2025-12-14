@@ -57,10 +57,14 @@ const effectSummary = (event: ActiveEventSnapshot): string => {
 };
 
 export const EventTicker: React.FC<Props> = ({ events }) => {
-  if (!events || events.length === 0) return null;
+  if (!events || events.length === 0) {
+    return (
+      <div className="pointer-events-none absolute inset-x-0 top-[52px] z-30 flex justify-center" />
+    );
+  }
 
   return (
-    <div className="pointer-events-none relative z-10 flex flex-wrap gap-3 px-4 py-2 text-sm">
+    <div className="pointer-events-none absolute inset-x-0 top-[52px] z-30 flex flex-wrap justify-center gap-3 px-4 py-2 text-sm">
       {events.map((event) => {
         const ratio = Math.max(
           0,
