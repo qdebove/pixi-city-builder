@@ -494,7 +494,7 @@ Le code doit rester :
 
 * [x] Compétences actives & passives pour bâtiments et personnel
 * [x] Événements dynamiques (afflux, contrôles, incidents abstraits)
-* [ ] IA décisionnelle avancée pour visiteurs & personnel
+* [x] IA décisionnelle avancée pour visiteurs & personnel
 * [ ] Spécialisation de quartiers (zones thématiques, bonus contextuels)
 * [ ] Économie multi-niveaux (coûts d’entretien, salaires, taxes abstraites)
 * [ ] Sauvegarde / reprise complète (ville, personnel, arbres de compétences, assets actifs)
