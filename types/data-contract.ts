@@ -587,6 +587,14 @@ export interface Visitor {
   satisfaction: number; // can be 0..1 or 0..100, your choice
   fatigue: number;
 
+  /**
+   * Non-staff do not débloquer un arbre de compétences : ils progressent via une barre d’XP simple.
+   * Elle peut influencer les caractéristiques (patience, budget) mais reste motorisée côté données.
+   */
+  level?: number;
+  experience: number;
+  experienceToNext?: number;
+
   state: VisitorState;
 
   timeInCity: number;

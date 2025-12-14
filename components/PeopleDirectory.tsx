@@ -94,35 +94,77 @@ const WorkerCard: React.FC<{
   );
 };
 
-const VisitorCard: React.FC<{ visitor: Visitor }> = ({ visitor }) => (
-  <article className="rounded-lg border border-slate-700/80 bg-slate-900/60 p-3">
-    <header className="flex items-center justify-between">
-      <div>
-        <p className="text-xs uppercase text-slate-400">Visiteur</p>
-        <p className="text-sm font-semibold text-white">{visitor.id}</p>
+const VisitorCard: React.FC<{ visitor: Visitor }> = ({ visitor }) => {
+  const level = visitor.level ?? 1;
+  const experience = visitor.experience ?? 0;
+  const experienceToNext = visitor.experienceToNext ?? 100;
+  const xpProgress = Math.min(experience / experienceToNext, 1);
+  const patienceBonus = 1 + xpProgress * 0.1 + level * 0.05;
+  const budgetBonus = 1 + xpProgress * 0.08;
+
+  return (
+    <article className="rounded-lg border border-slate-700/80 bg-slate-900/60 p-3">
+      <header className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase text-slate-400">Visiteur</p>
+          <p className="text-sm font-semibold text-white">{visitor.id}</p>
+        </div>
+        <span className="rounded-full bg-indigo-900/40 px-2 py-1 text-[11px] text-indigo-100">
+          Budget : {visitor.budget}€
+        </span>
+      </header>
+
+      <div className="mt-2 space-y-2">
+        <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+          <div className="flex items-center justify-between text-[12px] text-slate-200">
+            <span className="font-semibold">Niveau {level}</span>
+            <span className="font-mono text-slate-300">
+              {experience} / {experienceToNext} XP
+            </span>
+          </div>
+          <div className="mt-1 h-2 rounded-full bg-slate-700">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-sky-400"
+              style={{ width: `${Math.min(xpProgress * 100, 100)}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-amber-200">
+            Les visiteurs montent en XP sans arbre de compétences : la barre influe directement leurs caractéristiques.
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
+          <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+            <dt className="text-[11px] uppercase text-slate-400">Patience</dt>
+            <dd className="font-mono">
+              {(visitor.patience * patienceBonus).toFixed(1)} (+{((patienceBonus - 1) * 100).toFixed(0)}%)
+            </dd>
+          </div>
+          <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+            <dt className="text-[11px] uppercase text-slate-400">Satisfaction</dt>
+            <dd className="font-mono">{visitor.satisfaction}</dd>
+          </div>
+          <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+            <dt className="text-[11px] uppercase text-slate-400">Budget effectif</dt>
+            <dd className="font-mono">
+              {(visitor.budget * budgetBonus).toFixed(0)}€ (+{((budgetBonus - 1) * 100).toFixed(0)}%)
+            </dd>
+          </div>
+          <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+            <dt className="text-[11px] uppercase text-slate-400">Fatigue</dt>
+            <dd className="font-mono">{visitor.fatigue.toFixed(1)}</dd>
+          </div>
+          <div className="col-span-2 rounded border border-slate-700/60 bg-slate-800/80 p-2">
+            <dt className="text-[11px] uppercase text-slate-400">Préférences</dt>
+            <dd className="text-[12px] text-slate-200">
+              Luxe {visitor.preferences.luxury} • Sensibilité prix {visitor.preferences.priceSensitivity} • Variété {visitor.preferences.variety} • Discrétion {visitor.preferences.discretion}
+            </dd>
+          </div>
+        </dl>
       </div>
-      <span className="rounded-full bg-indigo-900/40 px-2 py-1 text-[11px] text-indigo-100">
-        Budget : {visitor.budget}€
-      </span>
-    </header>
-    <dl className="mt-2 grid grid-cols-2 gap-2 text-[12px] text-slate-200">
-      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-        <dt className="text-[11px] uppercase text-slate-400">Patience</dt>
-        <dd className="font-mono">{visitor.patience}</dd>
-      </div>
-      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-        <dt className="text-[11px] uppercase text-slate-400">Satisfaction</dt>
-        <dd className="font-mono">{visitor.satisfaction}</dd>
-      </div>
-      <div className="col-span-2 rounded border border-slate-700/60 bg-slate-800/80 p-2">
-        <dt className="text-[11px] uppercase text-slate-400">Préférences</dt>
-        <dd className="text-[12px] text-slate-200">
-          Luxe {visitor.preferences.luxury} • Sensibilité prix {visitor.preferences.priceSensitivity} • Variété {visitor.preferences.variety} • Discrétion {visitor.preferences.discretion}
-        </dd>
-      </div>
-    </dl>
-  </article>
-);
+    </article>
+  );
+};
 
 export const PeopleDirectory: React.FC<PeopleDirectoryProps> = ({
   occupantsByRole,

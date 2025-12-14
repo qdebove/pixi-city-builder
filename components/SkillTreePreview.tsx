@@ -118,46 +118,51 @@ const SkillTimeline: React.FC<{
           tone={accent === 'amber' ? 'amber' : 'sky'}
         />
       </div>
-      <ul className="relative space-y-3">
-        <span className={`absolute left-[11px] top-3 bottom-3 w-px ${accentDot} bg-opacity-30`} />
-        {entries.map((entry, index) => (
-          <li key={entry.id} className="relative pl-8">
-            <span
-              className={`absolute left-0 top-2 h-3 w-3 rounded-full shadow ${accentDot}`}
-            />
-            <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Palier {index + 1}</span>
-                  <NodeBadge label={entry.badge} tone="violet" />
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-full items-stretch gap-3">
+          {entries.map((entry, index) => (
+            <div key={entry.id} className="relative min-w-[220px] flex-1">
+              {index < entries.length - 1 && (
+                <span
+                  className={`absolute left-[calc(100%-6px)] top-1/2 h-0.5 w-6 -translate-y-1/2 rounded-full ${accentDot}`}
+                />
+              )}
+              <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3 h-full flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Palier {index + 1}</span>
+                    <NodeBadge label={entry.badge} tone="violet" />
+                  </div>
+                  {entry.icon && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.icon}
+                      alt={entry.title}
+                      className="h-8 w-8 rounded-md border border-slate-700 bg-slate-800 object-cover"
+                    />
+                  )}
                 </div>
-                {entry.icon && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={entry.icon}
-                    alt={entry.title}
-                    className="h-8 w-8 rounded-md border border-slate-700 bg-slate-800 object-cover"
-                  />
+                <p className="text-sm font-semibold text-white">{entry.title}</p>
+                <p className="text-[12px] text-slate-300">{entry.subtitle}</p>
+                {entry.detail && (
+                  <p className="mt-1 text-[11px] text-amber-200/90 font-mono">
+                    {entry.detail}
+                  </p>
                 )}
               </div>
-              <p className="text-sm font-semibold text-white">{entry.title}</p>
-              <p className="text-[12px] text-slate-300">{entry.subtitle}</p>
-              {entry.detail && (
-                <p className="mt-1 text-[11px] text-amber-200/90 font-mono">
-                  {entry.detail}
-                </p>
-              )}
             </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      </div>
     </article>
   );
 };
 
 const workerTreeEntries = (trees: SkillTree[]): TimelineEntry[][] =>
   trees.map((tree) =>
-    Object.values(tree.nodes).map((node) => {
+    Object.values(tree.nodes)
+      .sort((a, b) => a.cost - b.cost)
+      .map((node) => {
       const effectDescription = node.effects
         .map(
           (effect) => `${effect.stat} ${effect.mode === 'additive' ? '+' : 'x'}${effect.value}`

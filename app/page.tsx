@@ -437,18 +437,8 @@ const Home: React.FC = () => {
       <EventTicker events={gameState.activeEvents} />
 
       {/* Layout principal */}
-      <div className="flex h-[calc(100vh-40px)] w-full pt-0">
-        <div className="w-[300px] shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto">
-          <BuildingSidebar
-            money={gameState.money}
-            totalClicks={gameState.totalClicks}
-            onSelect={handleSelectBuildingToBuild}
-            draggingMode={draggingType}
-            onOpenMenu={openMenu}
-          />
-        </div>
-
-        <div className="relative grow bg-slate-950">
+      <div className="relative h-[calc(100vh-40px)] w-full pt-0">
+        <div className="absolute inset-0 bg-slate-950">
           <div
             ref={gameContainerRef}
             className="absolute inset-0 cursor-crosshair"
@@ -487,6 +477,18 @@ const Home: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
+          <div className="pointer-events-auto mx-auto max-w-6xl">
+            <BuildingSidebar
+              money={gameState.money}
+              totalClicks={gameState.totalClicks}
+              onSelect={handleSelectBuildingToBuild}
+              draggingMode={draggingType}
+              onOpenMenu={openMenu}
+            />
+          </div>
         </div>
       </div>
 
