@@ -4,6 +4,7 @@ import {
   SkillTree,
   Trait,
   Visitor,
+  UnlockRequirements,
 } from '@/types/data-contract';
 import { SpriteResolver } from '@/pixi/assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from '@/pixi/assets/registry';
@@ -56,6 +57,26 @@ const resolveTraitIcon = (trait: Trait): string | undefined => {
   });
 
   return resolved?.uri;
+};
+
+const describeRequirements = (requirements?: UnlockRequirements): string | null => {
+  if (!requirements) return null;
+  const parts: string[] = [];
+  if (requirements.money) {
+    parts.push(`⏳ Budget ≥ ${requirements.money}€`);
+  }
+
+  const rep = requirements.reputation;
+  if (rep?.local?.min !== undefined) parts.push(`Réputation locale ≥ ${rep.local.min}`);
+  if (rep?.local?.max !== undefined) parts.push(`Réputation locale ≤ ${rep.local.max}`);
+  if (rep?.premium?.min !== undefined)
+    parts.push(`Réputation premium ≥ ${rep.premium.min}`);
+  if (rep?.premium?.max !== undefined)
+    parts.push(`Réputation premium ≤ ${rep.premium.max}`);
+  if (rep?.regulatoryPressure?.max !== undefined)
+    parts.push(`Pression régul. ≤ ${rep.regulatoryPressure.max}`);
+
+  return parts.length ? parts.join(' • ') : null;
 };
 
 const NodeBadge: React.FC<{ label: string; tone?: 'sky' | 'amber' | 'violet' }> = ({
@@ -175,6 +196,7 @@ const workerTreeEntries = (trees: SkillTree[]): TimelineEntry[][] =>
         subtitle: effectDescription,
         badge: `Coût ${node.cost} • Rang max ${node.maxRank}`,
         icon: resolveSkillIcon(node),
+        detail: describeRequirements(node.requirements) ?? undefined,
       } satisfies TimelineEntry;
     })
   );

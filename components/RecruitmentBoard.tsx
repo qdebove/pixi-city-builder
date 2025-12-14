@@ -6,12 +6,15 @@ import { Worker } from '@/types/data-contract';
 import { InfoImageSlot } from './InfoImageSlot';
 import { SpriteResolver } from '@/pixi/assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from '@/pixi/assets/registry';
+import { computeWorkerCost } from '@/pixi/data/recruitment';
 
 interface RecruitmentBoardProps {
   reputation: ReputationSnapshot;
   totalClicks: number;
   money: number;
   occupantsByRole: Record<PersonRole, number>;
+  hiredWorkers: string[];
+  onHireWorker: (workerId: string) => void;
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -46,6 +49,8 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
   totalClicks,
   money,
   occupantsByRole,
+  hiredWorkers,
+  onHireWorker,
 }) => {
   const [activeTab, setActiveTab] = useState<'candidates' | 'signals'>(
     'candidates'
@@ -62,7 +67,7 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
 
   const candidates = useMemo<CandidateProfile[]>(() => {
     return WORKER_ROSTER.map((worker) => {
-      const baseCost = 300 + worker.stats.efficiency * 180 + worker.level * 90;
+      const baseCost = computeWorkerCost(worker);
 
       const progressionGate = 120 + worker.level * 80;
       const localNeed = 38 + worker.stats.loyalty * 12;
@@ -186,6 +191,10 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
               seedKey: worker.id,
             })?.uri;
             const isLocked = candidate.readiness < 1;
+            const isHired = hiredWorkers.includes(worker.id);
+            const canAfford = money >= candidate.baseCost;
+            const accentColor =
+              worker.jobs.primary === 'guard' ? '#f59e0b' : '#38bdf8';
 
             return (
               <article
@@ -196,7 +205,7 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
                   <InfoImageSlot
                     label={worker.identity?.firstName ?? worker.id}
                     imageUrl={portraitUri}
-                    accentColor="#38bdf8"
+                    accentColor={accentColor}
                     locked={isLocked}
                     lockReason={
                       isLocked
@@ -209,17 +218,24 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
                       <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
                       <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
                       <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
+                      {worker.jobs.primary === 'guard' && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-900/50 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                          • Sécurité dédiée
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                        candidate.status === 'Disponible'
+                        isHired
+                          ? 'bg-emerald-700/70 text-emerald-50'
+                          : candidate.status === 'Disponible'
                           ? 'bg-emerald-700/60 text-emerald-50'
                           : candidate.status === 'En pré-contrat'
                           ? 'bg-amber-700/50 text-amber-50'
                           : 'bg-slate-700 text-slate-200'
                       }`}
                     >
-                      {candidate.status}
+                      {isHired ? 'Recrutée' : candidate.status}
                     </span>
                   </div>
                 </header>
@@ -251,6 +267,37 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
                     <p className="text-[11px] uppercase text-slate-400">Loyauté</p>
                     <p className="font-mono">{candidate.loyaltySignal}</p>
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[12px] text-slate-300">
+                    Signature :{' '}
+                    <span className="font-semibold text-amber-200">
+                      {formatCurrency(candidate.baseCost)}
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onHireWorker(worker.id)}
+                    disabled={isLocked || isHired || !canAfford}
+                    className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                      isLocked
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : isHired
+                        ? 'bg-emerald-700 text-emerald-50'
+                        : canAfford
+                        ? 'bg-sky-700 text-white hover:bg-sky-600'
+                        : 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {isHired
+                      ? "Déjà dans l'équipe"
+                      : isLocked
+                      ? 'Pas encore disponible'
+                      : canAfford
+                      ? 'Recruter'
+                      : 'Budget insuffisant'}
+                  </button>
                 </div>
               </article>
             );

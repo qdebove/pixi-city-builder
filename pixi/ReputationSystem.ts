@@ -60,8 +60,8 @@ export class ReputationSystem {
       staffCoverage * this.driftPerSecond * seconds * 3;
 
     this.state = {
-      local: clamp(this.state.local + localDelta, 0, 100),
-      premium: clamp(this.state.premium + premiumDelta, 0, 100),
+      local: clamp(this.state.local + localDelta, -100, 100),
+      premium: clamp(this.state.premium + premiumDelta, -100, 100),
       regulatoryPressure: clamp(
         this.state.regulatoryPressure + regulationDelta,
         0,
@@ -83,8 +83,8 @@ export class ReputationSystem {
     };
 
     this.state = {
-      local: clamp(next.local, 0, 100),
-      premium: clamp(next.premium, 0, 100),
+      local: clamp(next.local, -100, 100),
+      premium: clamp(next.premium, -100, 100),
       regulatoryPressure: clamp(next.regulatoryPressure, 0, 100),
     };
   }

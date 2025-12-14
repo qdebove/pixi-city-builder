@@ -1,4 +1,4 @@
-import { Application, Assets, FederatedPointerEvent, Point } from 'pixi.js';
+import { Application, Assets, FederatedPointerEvent, Point, Texture } from 'pixi.js';
 import { AssetDefinition } from '../types/data-contract';
 import { BuildingState, BuildingType, PersonRole, calculateUpgradeCost } from '../types/types';
 import { Building } from './Building';
@@ -18,6 +18,11 @@ import { ActiveEventSnapshot } from './EventSystem';
 import { TimeSnapshot, TimeSystem } from './TimeSystem';
 import { DebtSnapshot, DebtSystem } from './DebtSystem';
 import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
+import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
+import { ServiceFlash } from './ServiceFlash';
+import { WORKER_ROSTER } from './data/game-model';
+import { Worker } from '@/types/data-contract';
+import { computeWorkerCost } from './data/recruitment';
 
 export interface GameUIState {
   money: number;
@@ -34,6 +39,10 @@ export interface GameUIState {
   activeEvents: ActiveEventSnapshot[];
   time: TimeSnapshot;
   debt: DebtSnapshot;
+  security: SecuritySnapshot;
+  guardPresence: { roaming: number; stationed: number };
+  hiredWorkers: string[];
+  hiredByJob: Record<string, number>;
 }
 
 export class Game {
@@ -48,6 +57,10 @@ export class Game {
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
   private eventSystem: EventSystem;
+  private securitySystem: SecuritySystem;
+  private securitySnapshot: SecuritySnapshot;
+  private guardPresence = { roaming: 0, stationed: 0 };
+  private hiredWorkerIds = new Set<string>();
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -75,6 +88,8 @@ export class Game {
     this.eventSystem = new EventSystem();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
     this.debtSystem = new DebtSystem(DEBT_SETTINGS);
+    this.securitySystem = new SecuritySystem();
+    this.securitySnapshot = this.securitySystem.snapshot();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -108,6 +123,8 @@ export class Game {
       this.onPersonSelected,
       this.onPersonRemoved
     );
+
+    this.syncPeoplePool();
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
@@ -171,6 +188,27 @@ export class Game {
     );
     this.peopleManager.update(ctx);
 
+    const guardBreakdown = this.peopleManager.getWorkersByJob();
+    const roamingGuards = guardBreakdown.guard ?? 0;
+    const stationedGuards = this.buildingManager
+      .getBuildings()
+      .reduce((acc, building) => {
+        const guardCount = building
+          .getStaffMembers()
+          .filter((worker) => worker.jobs.primary === 'guard').length;
+        return acc + guardCount;
+      }, 0);
+
+    this.guardPresence = { roaming: roamingGuards, stationed: stationedGuards };
+
+    this.securitySnapshot = this.securitySystem.update({
+      roamingGuardCount: roamingGuards,
+      stationedGuards,
+      movingPeople: this.peopleManager.getPeopleCount(),
+      reputation: this.reputationSystem.snapshot(),
+      deltaMs: ctx.deltaMs,
+    });
+
     this.reputationSystem.update({
       buildings: this.buildingManager.getBuildings(),
       movingPeople: this.peopleManager.getPeopleCountByRole(),
@@ -188,6 +226,27 @@ export class Game {
       this.emitState();
     }
   };
+
+  public hireWorker(workerId: string): boolean {
+    const template = WORKER_ROSTER.find((worker) => worker.id === workerId);
+    if (!template) return false;
+    if (this.hiredWorkerIds.has(workerId)) return false;
+    const hiringCost = computeWorkerCost(template);
+    if (this.money < hiringCost) return false;
+
+    this.money -= hiringCost;
+    this.hiredWorkerIds.add(workerId);
+    this.syncPeoplePool();
+    this.emitState();
+    return true;
+  }
+
+  private syncPeoplePool() {
+    const templates: Worker[] = WORKER_ROSTER.filter((worker) =>
+      this.hiredWorkerIds.has(worker.id)
+    );
+    this.peopleManager.setAvailableWorkers(templates);
+  }
 
   private onPersonSelected = (selection: SelectedPersonSnapshot) => {
     if (this.selectedBuilding) {
@@ -286,6 +345,22 @@ export class Game {
     const center = building.getCenterGlobalPosition();
     new FloatingText(this.app, income, center.x, center.y);
     new IncomePulse(this.app, center.x, center.y, 1);
+
+    const staff = building.getStaffMembers();
+    if (staff.length > 0) {
+      const worker = staff[Math.floor(Math.random() * staff.length)];
+      const resolved = this.spriteResolver.resolve({
+        kind: 'portrait',
+        target: 'worker',
+        entity: { id: worker.id, tags: 'worker' },
+        variant: 'idle',
+        seedKey: worker.id,
+      });
+      if (resolved) {
+        const texture = Texture.from(resolved.assetId);
+        new ServiceFlash(this.app, texture, center.x, center.y - 28);
+      }
+    }
 
     this.emitState();
   }
@@ -451,6 +526,18 @@ export class Game {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
 
+    const hiredByJob = Array.from(this.hiredWorkerIds.values()).reduce(
+      (acc, id) => {
+        const template = WORKER_ROSTER.find((worker) => worker.id === id);
+        if (template) {
+          const jobId = template.jobs.primary;
+          acc[jobId] = (acc[jobId] ?? 0) + 1;
+        }
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
     this.onStateChange({
       money: this.money,
       totalClicks: this.totalClicks,
@@ -470,6 +557,10 @@ export class Game {
       activeEvents: this.activeEvents,
       time: this.timeSystem.snapshotState(),
       debt: this.debtSystem.snapshotState(),
+      security: this.securitySnapshot,
+      guardPresence: this.guardPresence,
+      hiredWorkers: Array.from(this.hiredWorkerIds.values()),
+      hiredByJob,
     });
   }
 

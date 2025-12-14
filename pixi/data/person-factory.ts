@@ -48,4 +48,8 @@ export class PersonFactory {
       WORKER_ROSTER[Math.floor(Math.random() * WORKER_ROSTER.length)];
     return cloneWorker(template);
   }
+
+  public createWorkerFromTemplate(template: Worker): Worker {
+    return cloneWorker(template);
+  }
 }

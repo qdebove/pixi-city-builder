@@ -21,6 +21,7 @@ export class PeopleManager {
   private decisionAI: DecisionAI;
 
   private people: Person[] = [];
+  private availableWorkers: Worker[] = [];
   private elapsedSinceSpawn = 0;
   private readonly baseSpawnIntervalMs = 4000;
   private spawnIntervalMultiplier = 1;
@@ -87,6 +88,10 @@ export class PeopleManager {
     this.spawnIntervalMultiplier = safeMultiplier;
   }
 
+  public setAvailableWorkers(workers: Worker[]) {
+    this.availableWorkers = workers;
+  }
+
   private trySpawnPerson(): boolean {
     const roads = this.buildingManager.getRoadBuildings();
     if (roads.length < 2) return false;
@@ -139,9 +144,17 @@ export class PeopleManager {
     );
 
     const role = this.pickRole();
+    if (role === 'staff' && this.availableWorkers.length === 0) {
+      return false;
+    }
+
     const profile =
       role === 'staff'
-        ? this.personFactory.createWorker()
+        ? this.personFactory.createWorkerFromTemplate(
+            this.availableWorkers[
+              Math.floor(Math.random() * this.availableWorkers.length)
+            ]
+          )
         : this.personFactory.createVisitor();
 
     const person = new Person(
@@ -162,10 +175,27 @@ export class PeopleManager {
         },
       }
     );
+
+    if (role === 'staff' && this.isGuard(profile)) {
+      let reverse = false;
+      const assignNext = () => {
+        const nextPath = reverse ? [...pathPoints].reverse() : pathPoints;
+        reverse = !reverse;
+        person.setPath(nextPath);
+      };
+      person.setOnFinished(() => {
+        assignNext();
+        return true;
+      });
+    }
     person.zIndex = 1000;
     this.world.addChild(person);
     this.people.push(person);
     return true;
+  }
+
+  private isGuard(profile: Visitor | Worker): profile is Worker {
+    return 'jobs' in profile && profile.jobs.primary === 'guard';
   }
 
   private findPath(start: Building, end: Building): Building[] | null {
@@ -252,6 +282,7 @@ export class PeopleManager {
   }
 
   private pickRole(): PersonRole {
+    if (this.availableWorkers.length === 0) return 'visitor';
     const roll = Math.random();
     return roll < 0.7 ? 'visitor' : 'staff';
   }
@@ -284,5 +315,18 @@ export class PeopleManager {
       },
       { visitor: 0, staff: 0 } as Record<PersonRole, number>
     );
+  }
+
+  public getWorkersByJob(): Record<string, number> {
+    this.people = this.people.filter((p) => !p.destroyed);
+    return this.people.reduce<Record<string, number>>((acc, person) => {
+      if (person.role !== 'staff') return acc;
+      const profile = person.getProfile();
+      if ('jobs' in profile) {
+        const jobId = profile.jobs.primary;
+        acc[jobId] = (acc[jobId] ?? 0) + 1;
+      }
+      return acc;
+    }, {});
   }
 }

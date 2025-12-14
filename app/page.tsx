@@ -49,6 +49,10 @@ const Home: React.FC = () => {
       totalPaid: 0,
       monthIndex: 0,
     },
+    security: { score: 42, guardCoverage: 0 },
+    guardPresence: { roaming: 0, stationed: 0 },
+    hiredWorkers: [],
+    hiredByJob: {},
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -78,6 +82,10 @@ const Home: React.FC = () => {
 
   const handleStateChange = useCallback((newState: GameUIState) => {
     setGameState(newState);
+  }, []);
+
+  const handleHireWorker = useCallback((workerId: string) => {
+    gameRef.current?.hireWorker(workerId);
   }, []);
 
   useEffect(() => {
@@ -258,6 +266,11 @@ const Home: React.FC = () => {
       description: 'Arbres, talents et traits clés.',
     },
     {
+      id: 'security',
+      label: 'Sécurité',
+      description: 'Indice global, patrouilles et garde dédiée.',
+    },
+    {
       id: 'recruitment',
       label: 'Recrutement',
       description: 'Profils disponibles et pré-recrutement.',
@@ -342,6 +355,19 @@ const Home: React.FC = () => {
         `Production totale : ${gameState.totalClicks.toLocaleString()} ticks`,
       ],
       accent: 'violet',
+    },
+    {
+      id: 'security',
+      title: 'Sécurité',
+      main: `${gameState.security.score.toFixed(1)} / 100`,
+      sub: `Patrouilles ${gameState.guardPresence.roaming} • Postes ${gameState.guardPresence.stationed}`,
+      extras: [
+        `Couverture : ${gameState.security.guardCoverage.toFixed(1)} zones`,
+        `Personnel recruté : ${gameState.hiredWorkers.length}`,
+        `Équipe en déplacement : ${gameState.peopleByRole.staff.toLocaleString()}`,
+        'Les gardes circulent en trajectoires Manhattan sans diagonale.',
+      ],
+      accent: 'rose',
     },
   ];
 
@@ -556,6 +582,11 @@ const Home: React.FC = () => {
         money={gameState.money}
         reputation={gameState.reputation}
         totalClicks={gameState.totalClicks}
+        security={gameState.security}
+        guardPresence={gameState.guardPresence}
+        hiredWorkers={gameState.hiredWorkers}
+        hiredByJob={gameState.hiredByJob}
+        onHireWorker={handleHireWorker}
       />
     </div>
   );

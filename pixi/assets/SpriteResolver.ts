@@ -8,9 +8,16 @@ import {
 } from '../types/data-contract';
 
 export class SpriteResolver {
+  private readonly cache = new Map<string, ResolvedSprite | null>();
+
   constructor(private readonly registry: AssetRegistry) {}
 
   public resolve(request: SpriteResolveRequest): ResolvedSprite | null {
+    const cacheKey = this.buildCacheKey(request);
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey) ?? null;
+    }
+
     const rules = this.collectMatchingRules(request);
 
     for (const rule of rules) {
@@ -25,9 +32,12 @@ export class SpriteResolver {
 
       if (!asset) continue;
 
-      return this.buildResolvedSprite(asset, request, rule.id);
+      const resolved = this.buildResolvedSprite(asset, request, rule.id);
+      this.cache.set(cacheKey, resolved);
+      return resolved;
     }
 
+    this.cache.set(cacheKey, null);
     return null;
   }
 
@@ -163,6 +173,19 @@ export class SpriteResolver {
     }
 
     return null;
+  }
+
+  private buildCacheKey(request: SpriteResolveRequest): string {
+    const context = request.context ? JSON.stringify(request.context) : '';
+    return [
+      request.kind,
+      request.target,
+      request.variant,
+      request.facing ?? 'none',
+      JSON.stringify(request.entity),
+      request.seedKey ?? 'none',
+      context,
+    ].join('|');
   }
 
   private evaluateCondition(
