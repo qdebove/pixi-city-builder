@@ -6,6 +6,7 @@ import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { Game, GameUIState } from '@/pixi/Game';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
+import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
 import React, {
   useCallback,
   useEffect,
@@ -34,6 +35,19 @@ const Home: React.FC = () => {
     },
     zoom: 1,
     activeEvents: [],
+    time: {
+      hour: 0,
+      day: TIME_SETTINGS.startDay ?? 1,
+      month: TIME_SETTINGS.startMonth ?? 1,
+      year: TIME_SETTINGS.startYear ?? 1,
+      elapsedMs: 0,
+    },
+    debt: {
+      balance: DEBT_SETTINGS.startingBalance,
+      lastPayment: 0,
+      totalPaid: 0,
+      monthIndex: 0,
+    },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -96,6 +110,14 @@ const Home: React.FC = () => {
       currency: 'EUR',
       maximumFractionDigits: 0,
     });
+
+  const formatClock = () => {
+    const hour = gameState.time.hour.toString().padStart(2, '0');
+    return `Mois ${gameState.time.month} • Jour ${gameState.time.day} • ${hour}:00`;
+  };
+
+  const formatDebt = () =>
+    `${formatMoney(gameState.debt.balance)} restantes`;
 
   const handleClosePerson = () => gameRef.current?.deselectPerson();
 
@@ -170,6 +192,30 @@ const Home: React.FC = () => {
             </span>
             <span className="font-mono font-semibold text-amber-300">
               {formatMoney(gameState.money)}
+            </span>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">
+              Calendrier local
+            </span>
+            <span className="font-mono font-semibold text-cyan-200">
+              {formatClock()}
+            </span>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase text-slate-400">
+              Dette mensuelle
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="font-mono font-semibold text-rose-200">
+                {formatMoney(gameState.debt.lastPayment || DEBT_SETTINGS.minimumPayment)}
+              </span>
+              <span className="text-[11px] text-slate-400">due ce mois</span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              Solde : <span className="font-mono text-slate-100">{formatDebt()}</span>
             </span>
           </div>
 

@@ -506,8 +506,8 @@ Le code doit rester :
 
 ### ⏳ À faire / améliorer (liste priorisée)
 
-* [ ] Système de jour / mois / heure locale
-* [ ] Dette : chaque mois, remboursement obligatoire ; la dette grossit
+* [x] Système de jour / mois / heure locale
+* [x] Dette : chaque mois, remboursement obligatoire ; la dette grossit
 * [ ] Popups d’informations : zone image + image grisée/floue si non débloquée
 * [ ] Popups d’informations : déplaçables (drag)
 * [ ] Arbres de compétences horizontaux + scrollables
