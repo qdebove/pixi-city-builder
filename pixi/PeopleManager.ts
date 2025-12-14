@@ -21,6 +21,7 @@ export class PeopleManager {
   private decisionAI: DecisionAI;
 
   private people: Person[] = [];
+  private availableWorkers: Worker[] = [];
   private elapsedSinceSpawn = 0;
   private readonly baseSpawnIntervalMs = 4000;
   private spawnIntervalMultiplier = 1;
@@ -87,6 +88,10 @@ export class PeopleManager {
     this.spawnIntervalMultiplier = safeMultiplier;
   }
 
+  public setAvailableWorkers(workers: Worker[]) {
+    this.availableWorkers = workers;
+  }
+
   private trySpawnPerson(): boolean {
     const roads = this.buildingManager.getRoadBuildings();
     if (roads.length < 2) return false;
@@ -139,9 +144,17 @@ export class PeopleManager {
     );
 
     const role = this.pickRole();
+    if (role === 'staff' && this.availableWorkers.length === 0) {
+      return false;
+    }
+
     const profile =
       role === 'staff'
-        ? this.personFactory.createWorker()
+        ? this.personFactory.createWorkerFromTemplate(
+            this.availableWorkers[
+              Math.floor(Math.random() * this.availableWorkers.length)
+            ]
+          )
         : this.personFactory.createVisitor();
 
     const person = new Person(
@@ -269,6 +282,7 @@ export class PeopleManager {
   }
 
   private pickRole(): PersonRole {
+    if (this.availableWorkers.length === 0) return 'visitor';
     const roll = Math.random();
     return roll < 0.7 ? 'visitor' : 'staff';
   }
