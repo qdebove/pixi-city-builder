@@ -20,6 +20,9 @@ import { DebtSnapshot, DebtSystem } from './DebtSystem';
 import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
 import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
 import { ServiceFlash } from './ServiceFlash';
+import { WORKER_ROSTER } from './data/game-model';
+import { Worker } from '@/types/data-contract';
+import { computeWorkerCost } from './data/recruitment';
 
 export interface GameUIState {
   money: number;
@@ -38,6 +41,8 @@ export interface GameUIState {
   debt: DebtSnapshot;
   security: SecuritySnapshot;
   guardPresence: { roaming: number; stationed: number };
+  hiredWorkers: string[];
+  hiredByJob: Record<string, number>;
 }
 
 export class Game {
@@ -55,6 +60,7 @@ export class Game {
   private securitySystem: SecuritySystem;
   private securitySnapshot: SecuritySnapshot;
   private guardPresence = { roaming: 0, stationed: 0 };
+  private hiredWorkerIds = new Set<string>();
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -117,6 +123,8 @@ export class Game {
       this.onPersonSelected,
       this.onPersonRemoved
     );
+
+    this.syncPeoplePool();
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
@@ -218,6 +226,27 @@ export class Game {
       this.emitState();
     }
   };
+
+  public hireWorker(workerId: string): boolean {
+    const template = WORKER_ROSTER.find((worker) => worker.id === workerId);
+    if (!template) return false;
+    if (this.hiredWorkerIds.has(workerId)) return false;
+    const hiringCost = computeWorkerCost(template);
+    if (this.money < hiringCost) return false;
+
+    this.money -= hiringCost;
+    this.hiredWorkerIds.add(workerId);
+    this.syncPeoplePool();
+    this.emitState();
+    return true;
+  }
+
+  private syncPeoplePool() {
+    const templates: Worker[] = WORKER_ROSTER.filter((worker) =>
+      this.hiredWorkerIds.has(worker.id)
+    );
+    this.peopleManager.setAvailableWorkers(templates);
+  }
 
   private onPersonSelected = (selection: SelectedPersonSnapshot) => {
     if (this.selectedBuilding) {
@@ -497,6 +526,18 @@ export class Game {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
 
+    const hiredByJob = Array.from(this.hiredWorkerIds.values()).reduce(
+      (acc, id) => {
+        const template = WORKER_ROSTER.find((worker) => worker.id === id);
+        if (template) {
+          const jobId = template.jobs.primary;
+          acc[jobId] = (acc[jobId] ?? 0) + 1;
+        }
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
     this.onStateChange({
       money: this.money,
       totalClicks: this.totalClicks,
@@ -518,6 +559,8 @@ export class Game {
       debt: this.debtSystem.snapshotState(),
       security: this.securitySnapshot,
       guardPresence: this.guardPresence,
+      hiredWorkers: Array.from(this.hiredWorkerIds.values()),
+      hiredByJob,
     });
   }
 

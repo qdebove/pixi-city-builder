@@ -5,8 +5,17 @@ import { PeopleDirectory } from './PeopleDirectory';
 import { PersonRole } from '@/types/types';
 import { RecruitmentBoard } from './RecruitmentBoard';
 import { ReputationSnapshot } from '@/pixi/ReputationSystem';
+import { SecurityPanel } from './SecurityPanel';
+import { SecuritySnapshot } from '@/pixi/SecuritySystem';
 
-export type MenuTab = 'buildings' | 'skills' | 'people' | 'recruitment';
+const GUARD_WORKER_ID = 'worker_salma';
+
+export type MenuTab =
+  | 'buildings'
+  | 'skills'
+  | 'people'
+  | 'recruitment'
+  | 'security';
 
 interface MainMenuOverlayProps {
   open: boolean;
@@ -18,6 +27,11 @@ interface MainMenuOverlayProps {
   money: number;
   reputation: ReputationSnapshot;
   totalClicks: number;
+  security: SecuritySnapshot;
+  guardPresence: { roaming: number; stationed: number };
+  hiredWorkers: string[];
+  hiredByJob: Record<string, number>;
+  onHireWorker: (workerId: string) => void;
 }
 
 const tabs: { id: MenuTab; label: string; description: string }[] = [
@@ -32,6 +46,12 @@ const tabs: { id: MenuTab; label: string; description: string }[] = [
     label: 'Arbres de compétences',
     description:
       'Arbres dédiés par bâtiment, personnage et travailleur, avec une mise en page RPG.',
+  },
+  {
+    id: 'security',
+    label: 'Sécurité',
+    description:
+      'Couverture des gardes et recrutement d’une patrouille dédiée.',
   },
   {
     id: 'people',
@@ -57,6 +77,11 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
   money,
   reputation,
   totalClicks,
+  security,
+  guardPresence,
+  hiredWorkers,
+  hiredByJob,
+  onHireWorker,
 }) => {
   if (!open) return null;
 
@@ -88,14 +113,16 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
-                className={`flex grow items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition md:grow-0 ${
+                className={`flex min-w-[180px] flex-1 items-start gap-2 rounded-lg border px-3 py-2 text-left text-[13px] transition md:flex-none ${
                   isActive
                     ? 'border-sky-400 bg-sky-900/30 text-white shadow'
                     : 'border-slate-700 bg-slate-800/80 text-slate-200 hover:border-slate-500'
                 }`}
               >
-                <span className="font-semibold">{item.label}</span>
-                <span className="text-[11px] text-slate-300">{item.description}</span>
+                <span className="font-semibold leading-tight">{item.label}</span>
+                <span className="text-[11px] leading-tight text-slate-300">
+                  {item.description}
+                </span>
               </button>
             );
           })}
@@ -126,6 +153,17 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
               reputation={reputation}
               money={money}
               totalClicks={totalClicks}
+              hiredWorkers={hiredWorkers}
+              onHireWorker={onHireWorker}
+            />
+          )}
+          {tab === 'security' && (
+            <SecurityPanel
+              security={security}
+              guardPresence={guardPresence}
+              hiredGuards={hiredByJob.guard ?? 0}
+              money={money}
+              onHireGuard={() => onHireWorker(GUARD_WORKER_ID)}
             />
           )}
         </div>

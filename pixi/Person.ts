@@ -39,6 +39,21 @@ export class Person extends Container {
   private visual: Sprite | Graphics;
   private readonly onSelected?: (person: Person) => void;
 
+  private isGuardProfile() {
+    return (
+      this.role === 'staff' &&
+      'jobs' in this.profile &&
+      this.profile.jobs.primary === 'guard'
+    );
+  }
+
+  private getBaseColor() {
+    if (this.isGuardProfile()) {
+      return 0xf59e0b;
+    }
+    return this.role === 'visitor' ? 0xf9a8d4 : 0x38bdf8;
+  }
+
   constructor(
     app: Application,
     path: Point[],
@@ -58,7 +73,7 @@ export class Person extends Container {
     this.onSelected = options?.onSelected;
 
     const fallbackVisual = new Graphics();
-    const color = role === 'visitor' ? 0xf9a8d4 : 0x38bdf8;
+    const color = this.getBaseColor();
     fallbackVisual
       .circle(0, 0, 6)
       .fill(color)
@@ -177,6 +192,9 @@ export class Person extends Container {
     sprite.anchor.set(0.5);
     if (resolved.meta?.scale) {
       sprite.scale.set(resolved.meta.scale);
+    }
+    if (this.isGuardProfile()) {
+      sprite.tint = this.getBaseColor();
     }
 
     this.removeChild(this.visual);
