@@ -59,12 +59,12 @@ const effectSummary = (event: ActiveEventSnapshot): string => {
 export const EventTicker: React.FC<Props> = ({ events }) => {
   if (!events || events.length === 0) {
     return (
-      <div className="pointer-events-none absolute inset-x-0 top-[52px] z-30 flex justify-center" />
+      <div className="pointer-events-none fixed bottom-[200px] right-4 z-40 flex justify-center" />
     );
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[52px] z-30 flex flex-wrap justify-center gap-3 px-4 py-2 text-sm">
+    <div className="pointer-events-none fixed bottom-[200px] right-4 z-40 flex flex-col items-end gap-3 px-4 py-2 text-sm">
       {events.map((event) => {
         const ratio = Math.max(
           0,
@@ -73,35 +73,57 @@ export const EventTicker: React.FC<Props> = ({ events }) => {
         const summary = effectSummary(event);
 
         return (
-          <div
-            key={event.id}
-            className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/80 shadow-lg backdrop-blur-md"
-          >
-            <div
-              className={`h-1 bg-gradient-to-r ${severityColors[event.severity]}`}
-              style={{ width: `${ratio * 100}%` }}
-            />
-            <div className="flex items-start justify-between px-3 py-2 gap-2">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColors[event.severity]}`}
-                  >
-                    {event.severity === 'info'
-                      ? 'Info'
-                      : event.severity === 'warning'
-                      ? 'Alerte'
-                      : 'Critique'}
+          <div key={event.id} className="group pointer-events-auto relative">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-800/90 bg-slate-900/90 px-3 py-2 shadow-xl backdrop-blur-md">
+              <div
+                className={`h-10 w-1 rounded-full bg-gradient-to-b ${severityColors[event.severity]}`}
+                style={{ minWidth: '4px' }}
+                aria-hidden
+              />
+              <div className="flex min-w-[220px] items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <span className="text-[12px] font-semibold text-white">{event.title}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {formatSeconds(event.remainingMs)} restantes
                   </span>
-                  <span className="text-xs text-slate-400">{formatSeconds(event.remainingMs)}</span>
                 </div>
-                <p className="text-[13px] font-semibold text-slate-100 leading-tight">
-                  {event.title}
-                </p>
-                <p className="text-[12px] text-slate-300 leading-snug">{event.description}</p>
-                {summary && (
-                  <p className="mt-1 text-[11px] text-slate-400">{summary}</p>
-                )}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColors[event.severity]}`}
+                >
+                  {event.severity === 'info'
+                    ? 'Info'
+                    : event.severity === 'warning'
+                    ? 'Alerte'
+                    : 'Critique'}
+                </span>
+              </div>
+            </div>
+
+            <div className="invisible absolute bottom-full right-0 mb-2 w-[320px] translate-y-1 opacity-0 transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              <div className="overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/95 shadow-2xl backdrop-blur-md">
+                <div
+                  className={`h-1 bg-gradient-to-r ${severityColors[event.severity]}`}
+                  style={{ width: `${ratio * 100}%` }}
+                />
+                <div className="flex flex-col gap-1 px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-300">{formatSeconds(event.remainingMs)} restantes</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColors[event.severity]}`}
+                    >
+                      {event.severity === 'info'
+                        ? 'Info'
+                        : event.severity === 'warning'
+                        ? 'Alerte'
+                        : 'Critique'}
+                    </span>
+                  </div>
+                  <p className="text-[13px] font-semibold text-slate-100 leading-tight">{event.title}</p>
+                  <p className="text-[12px] text-slate-300 leading-snug">{event.description}</p>
+                  {summary && (
+                    <p className="mt-1 text-[11px] text-slate-400">{summary}</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
