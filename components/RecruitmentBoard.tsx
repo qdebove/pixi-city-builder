@@ -3,6 +3,9 @@ import { JOB_DEFINITIONS, WORKER_ROSTER } from '@/pixi/data/game-model';
 import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 import { PersonRole } from '@/types/types';
 import { Worker } from '@/types/data-contract';
+import { InfoImageSlot } from './InfoImageSlot';
+import { SpriteResolver } from '@/pixi/assets/SpriteResolver';
+import { BASE_ASSET_REGISTRY } from '@/pixi/assets/registry';
 
 interface RecruitmentBoardProps {
   reputation: ReputationSnapshot;
@@ -44,6 +47,11 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
   money,
   occupantsByRole,
 }) => {
+  const portraitResolver = useMemo(
+    () => new SpriteResolver(BASE_ASSET_REGISTRY),
+    []
+  );
+
   const staffPressure = Math.max(
     0,
     occupantsByRole.visitor - occupantsByRole.staff * 2
@@ -137,29 +145,50 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
           const { worker } = candidate;
           const job = JOB_DEFINITIONS[worker.jobs.primary];
           const readinessPercent = Math.round(clamp(candidate.readiness, 0, 1) * 100);
+          const portraitUri = portraitResolver.resolve({
+            kind: 'portrait',
+            target: 'worker',
+            entity: { id: worker.id, tags: 'worker' },
+            variant: 'idle',
+            seedKey: worker.id,
+          })?.uri;
+          const isLocked = candidate.readiness < 1;
 
           return (
             <article
               key={worker.id}
               className="flex flex-col gap-3 rounded-lg border border-slate-700 bg-slate-800/60 p-3 shadow-lg"
             >
-              <header className="flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
-                  <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
-                  <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
+              <header className="flex items-start gap-3">
+                <InfoImageSlot
+                  label={worker.identity?.firstName ?? worker.id}
+                  imageUrl={portraitUri}
+                  accentColor="#38bdf8"
+                  locked={isLocked}
+                  lockReason={
+                    isLocked
+                      ? `Prête à ${readinessPercent}%`
+                      : undefined
+                  }
+                />
+                <div className="flex flex-1 items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
+                    <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
+                    <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                      candidate.status === 'Disponible'
+                        ? 'bg-emerald-700/60 text-emerald-50'
+                        : candidate.status === 'En pré-contrat'
+                        ? 'bg-amber-700/50 text-amber-50'
+                        : 'bg-slate-700 text-slate-200'
+                    }`}
+                  >
+                    {candidate.status}
+                  </span>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                    candidate.status === 'Disponible'
-                      ? 'bg-emerald-700/60 text-emerald-50'
-                      : candidate.status === 'En pré-contrat'
-                      ? 'bg-amber-700/50 text-amber-50'
-                      : 'bg-slate-700 text-slate-200'
-                  }`}
-                >
-                  {candidate.status}
-                </span>
               </header>
 
               <div className="flex items-center gap-3">

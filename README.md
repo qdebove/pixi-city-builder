@@ -508,8 +508,8 @@ Le code doit rester :
 
 * [x] Système de jour / mois / heure locale
 * [x] Dette : chaque mois, remboursement obligatoire ; la dette grossit
-* [ ] Popups d’informations : zone image + image grisée/floue si non débloquée
-* [ ] Popups d’informations : déplaçables (drag)
+* [x] Popups d’informations : zone image + image grisée/floue si non débloquée
+* [x] Popups d’informations : déplaçables (drag)
 * [ ] Arbres de compétences horizontaux + scrollables
 * [ ] Personnages (non-staff) : pas d’arbre ; barre d’XP qui modifie les caractéristiques
 * [ ] Barre de construction horizontale en bas (remplace l’actuelle)

@@ -4,6 +4,8 @@ import {
   BuildingType,
   calculateIncome,
 } from '@/types/types';
+import { InfoImageSlot } from './InfoImageSlot';
+import { BUILDING_UNLOCKS, isBuildingUnlocked } from '@/pixi/data/unlocks';
 
 const categoryLabels: Record<BuildingType['category'], string> = {
   housing: 'Habitations',
@@ -12,7 +14,11 @@ const categoryLabels: Record<BuildingType['category'], string> = {
   infrastructure: 'Infrastructures',
 };
 
-export const BuildingLibrary: React.FC = () => {
+interface BuildingLibraryProps {
+  totalClicks: number;
+}
+
+export const BuildingLibrary: React.FC<BuildingLibraryProps> = ({ totalClicks }) => {
   const sorted = [...BUILDING_TYPES].sort((a, b) => a.cost - b.cost);
 
   return (
@@ -32,31 +38,46 @@ export const BuildingLibrary: React.FC = () => {
         {sorted.map((type) => {
           const color = `#${type.color.toString(16).padStart(6, '0')}`;
           const baseGain = calculateIncome(type, 1);
+          const unlockState = isBuildingUnlocked(type.id, totalClicks);
+          const unlockDefinition = BUILDING_UNLOCKS[type.id];
 
           return (
             <article
               key={type.id}
               className="rounded-lg border border-slate-700 bg-slate-800/70 p-3 shadow-md"
             >
-              <header className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="inline-block h-8 w-8 rounded-md"
-                    style={{ backgroundColor: color }}
-                  />
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-400">
-                      {categoryLabels[type.category]}
-                    </p>
-                    <h4 className="text-sm font-semibold text-white">
-                      {type.name}
-                    </h4>
+              <header className="flex items-start gap-3">
+                <InfoImageSlot
+                  label={type.name}
+                  accentColor={color}
+                  locked={!unlockState.unlocked}
+                  lockReason={unlockState.reason}
+                  fallbackContent={
+                    <span className="text-2xl font-black text-white/80">
+                      {type.name.slice(0, 1)}
+                    </span>
+                  }
+                />
+                <div className="flex flex-1 flex-col gap-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        {categoryLabels[type.category]}
+                      </p>
+                      <h4 className="text-sm font-semibold text-white">
+                        {type.name}
+                      </h4>
+                    </div>
+                    <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-200">
+                      {type.isRoad ? 'Infrastructure' : 'Exploitable'}
+                    </span>
                   </div>
+                  {unlockDefinition?.description && (
+                    <p className="text-[12px] text-slate-300 leading-snug">
+                      {unlockDefinition.description}
+                    </p>
+                  )}
                 </div>
-                <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-200">
-                  {type.isRoad ? 'Infrastructure' : 'Exploitable'}
-                </span>
               </header>
 
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-200">

@@ -2,6 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { SelectedPersonSnapshot } from '@/types/ui';
 import { JOB_DEFINITIONS, SKILL_TREES } from '@/pixi/data/game-model';
 import { Trait, Worker } from '@/types/data-contract';
+import { InfoImageSlot } from './InfoImageSlot';
+import { SpriteResolver } from '@/pixi/assets/SpriteResolver';
+import { BASE_ASSET_REGISTRY } from '@/pixi/assets/registry';
 
 const isWorker = (profile: SelectedPersonSnapshot['profile']): profile is Worker =>
   'jobs' in profile;
@@ -65,8 +68,25 @@ export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = 
     title: role === 'staff' ? 'Personnel' : 'Visiteur',
   };
 
+  const portraitResolver = useMemo(
+    () => new SpriteResolver(BASE_ASSET_REGISTRY),
+    []
+  );
+
   const portraitInitials = `${identity.firstName?.[0] ?? ''}${identity.lastName?.[0] ?? ''}`.toUpperCase() ||
     profile.id.slice(0, 2).toUpperCase();
+
+  const portraitUri = useMemo(() => {
+    const target = role === 'staff' ? 'worker' : 'visitor';
+    const resolved = portraitResolver.resolve({
+      kind: 'portrait',
+      target,
+      entity: { id: profile.id, tags: target },
+      variant: 'idle',
+      seedKey: profile.id,
+    });
+    return resolved?.uri;
+  }, [portraitResolver, profile.id, role]);
 
   const jobId = isWorker(profile) ? profile.jobs.primary : undefined;
   const jobDef = jobId ? JOB_DEFINITIONS[jobId] : undefined;
@@ -89,9 +109,16 @@ export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = 
   const baseCard = (
     <div className="space-y-3">
       <div className="flex items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
-        <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 via-indigo-500 to-slate-800 text-lg font-extrabold text-white shadow-inner">
-          {portraitInitials}
-        </div>
+        <InfoImageSlot
+          label={identity.firstName || profile.id}
+          imageUrl={portraitUri}
+          accentColor={role === 'staff' ? '#38bdf8' : '#f472b6'}
+          fallbackContent={
+            <span className="text-2xl font-black uppercase text-white/80">
+              {portraitInitials}
+            </span>
+          }
+        />
         <div className="flex flex-col leading-tight">
           <span className="text-[11px] uppercase tracking-wide text-slate-400">{role === 'staff' ? 'Personnel' : 'Visiteur'}</span>
           <span className="text-lg font-semibold text-white">{identity.firstName} {identity.lastName}</span>

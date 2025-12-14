@@ -102,7 +102,7 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
         </nav>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {tab === 'buildings' && <BuildingLibrary />}
+          {tab === 'buildings' && <BuildingLibrary totalClicks={totalClicks} />}
           {tab === 'skills' && (
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-sky-200">Arbres de compétences</h3>
