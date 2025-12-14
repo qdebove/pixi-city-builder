@@ -1,4 +1,4 @@
-import { Application, Assets, FederatedPointerEvent, Point } from 'pixi.js';
+import { Application, Assets, FederatedPointerEvent, Point, Texture } from 'pixi.js';
 import { AssetDefinition } from '../types/data-contract';
 import { BuildingState, BuildingType, PersonRole, calculateUpgradeCost } from '../types/types';
 import { Building } from './Building';
@@ -18,6 +18,8 @@ import { ActiveEventSnapshot } from './EventSystem';
 import { TimeSnapshot, TimeSystem } from './TimeSystem';
 import { DebtSnapshot, DebtSystem } from './DebtSystem';
 import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
+import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
+import { ServiceFlash } from './ServiceFlash';
 
 export interface GameUIState {
   money: number;
@@ -34,6 +36,8 @@ export interface GameUIState {
   activeEvents: ActiveEventSnapshot[];
   time: TimeSnapshot;
   debt: DebtSnapshot;
+  security: SecuritySnapshot;
+  guardPresence: { roaming: number; stationed: number };
 }
 
 export class Game {
@@ -48,6 +52,9 @@ export class Game {
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
   private eventSystem: EventSystem;
+  private securitySystem: SecuritySystem;
+  private securitySnapshot: SecuritySnapshot;
+  private guardPresence = { roaming: 0, stationed: 0 };
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -75,6 +82,8 @@ export class Game {
     this.eventSystem = new EventSystem();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
     this.debtSystem = new DebtSystem(DEBT_SETTINGS);
+    this.securitySystem = new SecuritySystem();
+    this.securitySnapshot = this.securitySystem.snapshot();
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -170,6 +179,27 @@ export class Game {
       eventModifiers.spawnIntervalMultiplier
     );
     this.peopleManager.update(ctx);
+
+    const guardBreakdown = this.peopleManager.getWorkersByJob();
+    const roamingGuards = guardBreakdown.guard ?? 0;
+    const stationedGuards = this.buildingManager
+      .getBuildings()
+      .reduce((acc, building) => {
+        const guardCount = building
+          .getStaffMembers()
+          .filter((worker) => worker.jobs.primary === 'guard').length;
+        return acc + guardCount;
+      }, 0);
+
+    this.guardPresence = { roaming: roamingGuards, stationed: stationedGuards };
+
+    this.securitySnapshot = this.securitySystem.update({
+      roamingGuardCount: roamingGuards,
+      stationedGuards,
+      movingPeople: this.peopleManager.getPeopleCount(),
+      reputation: this.reputationSystem.snapshot(),
+      deltaMs: ctx.deltaMs,
+    });
 
     this.reputationSystem.update({
       buildings: this.buildingManager.getBuildings(),
@@ -286,6 +316,22 @@ export class Game {
     const center = building.getCenterGlobalPosition();
     new FloatingText(this.app, income, center.x, center.y);
     new IncomePulse(this.app, center.x, center.y, 1);
+
+    const staff = building.getStaffMembers();
+    if (staff.length > 0) {
+      const worker = staff[Math.floor(Math.random() * staff.length)];
+      const resolved = this.spriteResolver.resolve({
+        kind: 'portrait',
+        target: 'worker',
+        entity: { id: worker.id, tags: 'worker' },
+        variant: 'idle',
+        seedKey: worker.id,
+      });
+      if (resolved) {
+        const texture = Texture.from(resolved.assetId);
+        new ServiceFlash(this.app, texture, center.x, center.y - 28);
+      }
+    }
 
     this.emitState();
   }
@@ -470,6 +516,8 @@ export class Game {
       activeEvents: this.activeEvents,
       time: this.timeSystem.snapshotState(),
       debt: this.debtSystem.snapshotState(),
+      security: this.securitySnapshot,
+      guardPresence: this.guardPresence,
     });
   }
 

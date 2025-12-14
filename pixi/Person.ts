@@ -15,7 +15,7 @@ import { SpriteResolver } from './assets/SpriteResolver';
 
 type PersonProfile = Visitor | Worker;
 
-type FinishCallback = () => void;
+type FinishCallback = () => boolean | void;
 
 type PersonOptions = {
   onFinished?: FinishCallback;
@@ -99,6 +99,10 @@ export class Person extends Container {
 
   public getProfile(): PersonProfile {
     return this.profile;
+  }
+
+  public setOnFinished(callback: FinishCallback | null) {
+    this.onFinished = callback;
   }
 
   public getId(): string {
@@ -232,12 +236,11 @@ export class Person extends Container {
   }
 
   private finish() {
+    const shouldLoop = this.onFinished ? this.onFinished() : false;
+    if (shouldLoop) return;
+
     this.app.ticker.remove(this.update, this);
-    if (this.onFinished) {
-      this.onFinished();
-    } else {
-      this.destroy();
-    }
+    this.destroy();
   }
 
   public destroy(options?: boolean | IDestroyOptions) {

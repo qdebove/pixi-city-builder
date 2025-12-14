@@ -137,6 +137,12 @@ export const JOB_DEFINITIONS: Record<JobID, JobDefinition> = {
     baseEfficiency: 1,
     skillTreeId: 'technician_tree',
   },
+  guard: {
+    id: 'guard',
+    nameKey: 'job.guard',
+    baseEfficiency: 1,
+    skillTreeId: 'guard_tree',
+  },
 };
 
 const conciergeNodes: Record<string, SkillNode> = {
@@ -262,6 +268,66 @@ const technicianNodes: Record<string, SkillNode> = {
   },
 };
 
+const guardNodes: Record<string, SkillNode> = {
+  perimeterDrill: {
+    id: 'perimeterDrill',
+    cost: 1,
+    maxRank: 3,
+    requirements: {
+      money: 200,
+      reputation: { local: { min: -25 }, regulatoryPressure: { max: 80 } },
+    },
+    effects: [
+      {
+        target: 'city',
+        stat: 'security',
+        value: 0.06,
+        mode: 'additive',
+      },
+    ],
+    prerequisites: [],
+    visuals: {
+      preferredRuleIds: { skillIcon: 'skill_icon_guard' },
+      tags: ['guard'],
+    },
+  },
+  nightWatch: {
+    id: 'nightWatch',
+    cost: 2,
+    maxRank: 2,
+    requirements: {
+      money: 320,
+      reputation: {
+        premium: { max: 40 },
+        regulatoryPressure: { max: 65 },
+      },
+    },
+    effects: [
+      {
+        target: 'city',
+        stat: 'security',
+        value: 0.12,
+        mode: 'multiplicative',
+      },
+    ],
+    prerequisites: ['perimeterDrill'],
+    visuals: {
+      preferredRuleIds: { skillIcon: 'skill_icon_patrol' },
+      tags: ['guard', 'night'],
+    },
+    procs: [
+      {
+        id: 'nightWatch_proc',
+        trigger: 'onIncomeTick',
+        spec: { chance: 0.25, cooldownTicks: 3 },
+        effects: [
+          { target: 'building', stat: 'interval', value: -120, mode: 'additive' },
+        ],
+      },
+    ],
+  },
+};
+
 export const SKILL_TREES: Record<string, SkillTree> = {
   concierge_tree: {
     id: 'concierge_tree',
@@ -272,6 +338,11 @@ export const SKILL_TREES: Record<string, SkillTree> = {
     id: 'technician_tree',
     jobId: 'technician',
     nodes: technicianNodes,
+  },
+  guard_tree: {
+    id: 'guard_tree',
+    jobId: 'guard',
+    nodes: guardNodes,
   },
 };
 
@@ -489,6 +560,19 @@ export const WORKER_ROSTER: Worker[] = [
       origin: 'Ex-maintenance événementielle',
       title: 'Technicienne méthodique',
       motto: 'Prévenir plutôt que réparer en urgence.',
+    }
+  ),
+  workerTemplate(
+    'worker_salma',
+    'guard',
+    [TRAITS[0]],
+    {
+      firstName: 'Salma',
+      lastName: 'Derrien',
+      age: 35,
+      origin: 'Garde itinérante',
+      title: 'Patrouilleuse discrète',
+      motto: 'Une présence visible suffit souvent à calmer les ardeurs.',
     }
   ),
 ];

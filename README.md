@@ -514,11 +514,11 @@ Le code doit rester :
 * [x] Personnages (non-staff) : pas d’arbre ; barre d’XP qui modifie les caractéristiques
 * [x] Barre de construction horizontale en bas (remplace l’actuelle)
 * [x] Construction routes en “peinture” : maintenir le bouton pour tirer des routes
-* [ ] Réputation : score global pouvant être négatif ; prérequis argent + réputation (positive/négative) pour compétences (bâtiments & staff)
-* [ ] Sécurité/délinquance : afficher un score global
-* [ ] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)
-* [ ] Service avec travailleuse : afficher son image au-dessus du bâtiment temporairement (comme un gain)
-* [ ] Optimiser l’accès aux images (surtout travailleuses) : cache/atlas/pooling
+* [x] Réputation : score global pouvant être négatif ; prérequis argent + réputation (positive/négative) pour compétences (bâtiments & staff)
+* [x] Sécurité/délinquance : afficher un score global
+* [x] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)
+* [x] Service avec travailleuse : afficher son image au-dessus du bâtiment temporairement (comme un gain)
+* [x] Optimiser l’accès aux images (surtout travailleuses) : cache/atlas/pooling
 * [ ] Bâtiments de tailles différentes : placement, collisions, adjacency routes
 * [ ] Supprimer exemples en dur : tout paramétrable via JSON
 * [ ] Mettre en place les conditions d’activation des compétences via contrats (conditions/procs) comme pour AssetDefinition/SpriteRule

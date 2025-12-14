@@ -152,6 +152,17 @@ export interface ConditionGroup {
 
 export type Condition = ConditionAtom | ConditionGroup;
 
+export interface ReputationRequirement {
+  local?: { min?: number; max?: number };
+  premium?: { min?: number; max?: number };
+  regulatoryPressure?: { min?: number; max?: number };
+}
+
+export interface UnlockRequirements {
+  money?: number;
+  reputation?: ReputationRequirement;
+}
+
 /**
  * How we pick one asset among many candidates:
  * - deterministic: stable for entityId, can change when variant changes
@@ -540,6 +551,7 @@ export interface SkillNode {
   id: ID;
   cost: number;
   maxRank: number;
+  requirements?: UnlockRequirements;
 
   /** Permanent effects once unlocked */
   effects: PassiveEffect[];

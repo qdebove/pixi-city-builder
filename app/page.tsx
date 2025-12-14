@@ -49,6 +49,8 @@ const Home: React.FC = () => {
       totalPaid: 0,
       monthIndex: 0,
     },
+    security: { score: 42, guardCoverage: 0 },
+    guardPresence: { roaming: 0, stationed: 0 },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -342,6 +344,18 @@ const Home: React.FC = () => {
         `Production totale : ${gameState.totalClicks.toLocaleString()} ticks`,
       ],
       accent: 'violet',
+    },
+    {
+      id: 'security',
+      title: 'Sécurité',
+      main: `${gameState.security.score.toFixed(1)} / 100`,
+      sub: `Patrouilles ${gameState.guardPresence.roaming} • Postes ${gameState.guardPresence.stationed}`,
+      extras: [
+        `Couverture : ${gameState.security.guardCoverage.toFixed(1)} zones`,
+        `Recrues mobiles : ${gameState.peopleByRole.staff.toLocaleString()}`,
+        'Les gardes circulent en trajectoires Manhattan sans diagonale.',
+      ],
+      accent: 'rose',
     },
   ];
 
