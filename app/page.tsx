@@ -17,6 +17,7 @@ import React, {
 const Home: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Game | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const [gameState, setGameState] = useState<GameUIState>({
     money: 1000,
@@ -52,6 +53,16 @@ const Home: React.FC = () => {
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
   );
+  const [panelPosition, setPanelPosition] = useState({ x: 12, y: 12 });
+  const dragStateRef = useRef<
+    | {
+        startX: number;
+        startY: number;
+        panelX: number;
+        panelY: number;
+      }
+    | null
+  >(null);
 
   const [menuTab, setMenuTab] = useState<MenuTab>('buildings');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -165,6 +176,59 @@ const Home: React.FC = () => {
       handleCloseDetails();
     }
   };
+
+  const handleDragMove = useCallback((event: PointerEvent) => {
+    if (!dragStateRef.current || !panelRef.current) return;
+    const { startX, startY, panelX, panelY } = dragStateRef.current;
+    const width = panelRef.current.offsetWidth;
+    const height = panelRef.current.offsetHeight;
+    const maxX = Math.max(8, window.innerWidth - width - 8);
+    const maxY = Math.max(8, window.innerHeight - height - 8);
+    const clampValue = (value: number, max: number) =>
+      Math.min(Math.max(value, 8), max);
+
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+
+    setPanelPosition({
+      x: clampValue(panelX + deltaX, maxX),
+      y: clampValue(panelY + deltaY, maxY),
+    });
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragStateRef.current = null;
+    window.removeEventListener('pointermove', handleDragMove);
+  }, [handleDragMove]);
+
+  const startDrag = useCallback(
+    (event: React.PointerEvent) => {
+      if (!panelRef.current) return;
+      dragStateRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        panelX: panelPosition.x,
+        panelY: panelPosition.y,
+      };
+      window.addEventListener('pointermove', handleDragMove);
+      window.addEventListener('pointerup', endDrag, { once: true });
+    },
+    [endDrag, handleDragMove, panelPosition.x, panelPosition.y]
+  );
+
+  useEffect(() => {
+    if (!gameState.selectedBuildingState && !gameState.selectedPerson) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPanelPosition({ x: 12, y: 12 });
+    dragStateRef.current = null;
+  }, [gameState.selectedBuildingState, gameState.selectedPerson]);
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', handleDragMove);
+      window.removeEventListener('pointerup', endDrag);
+    };
+  }, [endDrag, handleDragMove]);
 
   const panelScale =
     gameState.zoom > 0
@@ -391,13 +455,20 @@ const Home: React.FC = () => {
           />
 
           {selectionContent && (
-            <div className="pointer-events-none absolute left-3 top-3 z-30 flex max-w-full">
+            <div
+              className="pointer-events-none absolute z-30 flex max-w-full"
+              style={{ left: panelPosition.x, top: panelPosition.y }}
+            >
               <div
                 className="pointer-events-auto w-[min(440px,calc(100vw-340px))] max-w-lg origin-top-left"
                 style={{ transform: `scale(${panelScale})` }}
+                ref={panelRef}
               >
                 <div className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/90 shadow-2xl backdrop-blur-md">
-                  <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
+                  <div
+                    className="flex items-center justify-between border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200"
+                    onPointerDown={startDrag}
+                  >
                     <span>
                       {gameState.selectedPerson
                         ? 'Fiche personnage'
@@ -405,6 +476,7 @@ const Home: React.FC = () => {
                     </span>
                     <button
                       onClick={closeSelection}
+                      onPointerDown={(event) => event.stopPropagation()}
                       className="rounded-full border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 transition hover:bg-slate-700"
                     >
                       Fermer

@@ -1,3 +1,4 @@
+import { InfoImageSlot } from './InfoImageSlot';
 import { BuildingState, BuildingType, calculateIncome, calculateUpgradeCost } from '@/types/types';
 import React from 'react';
 
@@ -22,6 +23,7 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const visitorCount = state.occupants.visitor || 0;
   const staffCount = state.occupants.staff || 0;
   const staffCapacity = type.staffCapacity;
+  const accentColor = `#${type.color.toString(16).padStart(6, '0')}`;
 
   const ratio =
     type.capacity > 0
@@ -46,9 +48,22 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
 
   return (
     <div className="p-4 bg-slate-700/90 rounded-lg shadow-xl border border-slate-600">
-      <h3 className="text-lg font-bold text-sky-300 mb-3">
-        {type.name} (Niv. {state.level})
-      </h3>
+      <div className="mb-3 flex items-start gap-3">
+        <InfoImageSlot
+          label={type.name}
+          accentColor={accentColor}
+        />
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-bold text-sky-300">
+            {type.name} (Niv. {state.level})
+          </h3>
+          <p className="text-[12px] text-slate-200 leading-snug">
+            Synthèse opérationnelle avec zone d&apos;image dédiée. L&apos;illustration reste
+            prête à être grisée/floutée si la fiche est verrouillée par une future
+            condition de déblocage.
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm text-slate-300 mb-4">
         <p>
