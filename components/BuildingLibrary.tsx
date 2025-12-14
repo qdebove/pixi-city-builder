@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BUILDING_TYPES,
   BuildingType,
@@ -19,7 +19,29 @@ interface BuildingLibraryProps {
 }
 
 export const BuildingLibrary: React.FC<BuildingLibraryProps> = ({ totalClicks }) => {
-  const sorted = [...BUILDING_TYPES].sort((a, b) => a.cost - b.cost);
+  const [activeCategory, setActiveCategory] = useState<
+    BuildingType['category'] | 'all'
+  >('all');
+
+  const sorted = useMemo(
+    () => [...BUILDING_TYPES].sort((a, b) => a.cost - b.cost),
+    []
+  );
+
+  const categories = useMemo<
+    (BuildingType['category'] | 'all')[]
+  >(() => ['all', ...Array.from(new Set(sorted.map((type) => type.category)))], [sorted]);
+
+  const filtered = useMemo(
+    () =>
+      sorted.filter(
+        (type) => activeCategory === 'all' || type.category === activeCategory
+      ),
+    [activeCategory, sorted]
+  );
+
+  const resolveLabel = (category: BuildingType['category'] | 'all') =>
+    category === 'all' ? 'Tous les plans' : categoryLabels[category];
 
   return (
     <div className="space-y-4">
@@ -34,8 +56,28 @@ export const BuildingLibrary: React.FC<BuildingLibraryProps> = ({ totalClicks })
         </p>
       </div>
 
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-700/80 bg-slate-800/60 p-2">
+        {categories.map((category) => {
+          const isActive = activeCategory === category;
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setActiveCategory(category)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                isActive
+                  ? 'bg-sky-900/40 text-sky-100 border border-sky-500/70'
+                  : 'text-slate-200 border border-slate-700 hover:border-slate-500'
+              }`}
+            >
+              {resolveLabel(category)}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {sorted.map((type) => {
+        {filtered.map((type) => {
           const color = `#${type.color.toString(16).padStart(6, '0')}`;
           const baseGain = calculateIncome(type, 1);
           const unlockState = isBuildingUnlocked(type.id, totalClicks);

@@ -3,7 +3,7 @@ import {
   BuildingType,
   calculateIncome,
 } from '@/types/types';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { MenuTab } from './MainMenuOverlay';
 
 interface SidebarProps {
@@ -14,10 +14,7 @@ interface SidebarProps {
   onOpenMenu: (tab: MenuTab) => void;
 }
 
-const CATEGORY_LABELS: Record<
-  BuildingType['category'],
-  string
-> = {
+const CATEGORY_LABELS: Record<BuildingType['category'], string> = {
   housing: 'Habitations',
   commerce: 'Commerces',
   industry: 'Industries',
@@ -29,21 +26,28 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
   totalClicks,
   onSelect,
   draggingMode,
-  onOpenMenu
+  onOpenMenu,
 }) => {
   const [showAffordableOnly, setShowAffordableOnly] = useState(false);
 
-  const categories = Array.from(
-    new Set(BUILDING_TYPES.map((t) => t.category))
-  );
+  const grouped = useMemo(
+    () =>
+      Array.from(new Set(BUILDING_TYPES.map((t) => t.category)))
+        .map((cat) => {
+          const items = BUILDING_TYPES
+            .filter((t) => t.category === cat)
+            .filter((type) => (showAffordableOnly ? money >= type.cost : true))
+            .sort((a, b) => a.cost - b.cost);
 
-  const grouped = categories.map((cat) => ({
-    id: cat,
-    label: CATEGORY_LABELS[cat],
-    items: BUILDING_TYPES
-      .filter((t) => t.category === cat)
-      .sort((a, b) => a.cost - b.cost),
-  }));
+          return {
+            id: cat,
+            label: CATEGORY_LABELS[cat],
+            items,
+          };
+        })
+        .filter((group) => group.items.length > 0),
+    [money, showAffordableOnly]
+  );
 
   return (
     <aside className="w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 shadow-[0_-6px_20px_rgba(0,0,0,0.45)]">
@@ -87,84 +91,78 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
         </label>
       </div>
 
-      <div className="mt-2 overflow-x-auto pb-3">
-        <div className="flex min-w-full gap-3 px-4">
-          {grouped.map((group) => {
-            if (group.items.length === 0) return null;
-
-            return (
-              <div
-                key={group.id}
-                className="min-w-[280px] flex-shrink-0 rounded-xl border border-slate-700 bg-slate-800/80"
-              >
-                <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
-                  <span className="text-[12px] font-semibold uppercase text-slate-200">
-                    {group.label}
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    {group.items.length} plans
-                  </span>
-                </div>
-
-                <div className="flex flex-col gap-2 p-2">
-                  {group.items
-                    .filter((type) => (showAffordableOnly ? money >= type.cost : true))
-                    .map((type) => {
-                      const isDisabled = money < type.cost;
-                      const isActive = draggingMode?.id === type.id;
-                      const handleClick = () => {
-                        if (isDisabled) return;
-                        onSelect(isActive ? null : type);
-                      };
-
-                      const baseGain = calculateIncome(type, 1);
-                      const periodSec =
-                        type.baseIntervalMs > 0
-                          ? (type.baseIntervalMs / 1000).toFixed(2)
-                          : null;
-
-                      return (
-                        <button
-                          key={type.id}
-                          type="button"
-                          onClick={handleClick}
-                          className={`flex items-center justify-between gap-3 rounded-lg border px-2 py-2 text-left transition duration-150 ${
-                            isDisabled
-                              ? 'cursor-not-allowed border-slate-800/70 bg-slate-900/60 text-slate-500'
-                              : 'border-slate-700 bg-slate-900/70 hover:border-sky-500 hover:bg-slate-800/80'
-                          } ${isActive ? 'ring-2 ring-sky-400 bg-sky-900/30' : ''}`}
-                          disabled={isDisabled}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-8 w-8 rounded-md border border-slate-700"
-                              style={{
-                                backgroundColor: `#${type.color.toString(16).padStart(6, '0')}`,
-                              }}
-                            />
-                            <div className="flex flex-col text-xs">
-                              <span className="text-sm font-semibold text-white">{type.name}</span>
-                              <span className="text-[11px] text-slate-300">
-                                Coût : {type.cost}€
-                                {!type.isRoad && periodSec && (
-                                  <>
-                                    {' '}
-                                    • Gain {baseGain}€ / {periodSec}s
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-200">
-                            {type.isRoad ? 'Route' : 'Exploitable'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                </div>
+      <div className="mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-track-slate-900 scrollbar-thumb-slate-700">
+        <div className="flex min-w-full gap-3 px-4 pb-1">
+          {grouped.map((group) => (
+            <div
+              key={group.id}
+              className="min-w-[280px] flex-shrink-0 rounded-xl border border-slate-700 bg-slate-800/80"
+            >
+              <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+                <span className="text-[12px] font-semibold uppercase text-slate-200">
+                  {group.label}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {group.items.length} plans
+                </span>
               </div>
-            );
-          })}
+
+              <div className="flex flex-col gap-2 p-2">
+                {group.items.map((type) => {
+                  const isDisabled = money < type.cost;
+                  const isActive = draggingMode?.id === type.id;
+                  const handleClick = () => {
+                    if (isDisabled) return;
+                    onSelect(isActive ? null : type);
+                  };
+
+                  const baseGain = calculateIncome(type, 1);
+                  const periodSec =
+                    type.baseIntervalMs > 0
+                      ? (type.baseIntervalMs / 1000).toFixed(2)
+                      : null;
+
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={handleClick}
+                      className={`flex items-center justify-between gap-3 rounded-lg border px-2 py-2 text-left transition duration-150 ${
+                        isDisabled
+                          ? 'cursor-not-allowed border-slate-800/70 bg-slate-900/60 text-slate-500'
+                          : 'border-slate-700 bg-slate-900/70 hover:border-sky-500 hover:bg-slate-800/80'
+                      } ${isActive ? 'ring-2 ring-sky-400 bg-sky-900/30' : ''}`}
+                      disabled={isDisabled}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-8 w-8 rounded-md border border-slate-700"
+                          style={{
+                            backgroundColor: `#${type.color.toString(16).padStart(6, '0')}`,
+                          }}
+                        />
+                        <div className="flex flex-col text-xs">
+                          <span className="text-sm font-semibold text-white">{type.name}</span>
+                          <span className="text-[11px] text-slate-300">
+                            Coût : {type.cost}€
+                            {!type.isRoad && periodSec && (
+                              <>
+                                {' '}
+                                • Gain {baseGain}€ / {periodSec}s
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-200">
+                        {type.isRoad ? 'Route' : 'Exploitable'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
