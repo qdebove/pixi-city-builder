@@ -513,7 +513,7 @@ Le code doit rester :
 * [x] Arbres de compétences horizontaux + scrollables
 * [x] Personnages (non-staff) : pas d’arbre ; barre d’XP qui modifie les caractéristiques
 * [x] Barre de construction horizontale en bas (remplace l’actuelle)
-* [ ] Construction routes en “peinture” : maintenir le bouton pour tirer des routes
+* [x] Construction routes en “peinture” : maintenir le bouton pour tirer des routes
 * [ ] Réputation : score global pouvant être négatif ; prérequis argent + réputation (positive/négative) pour compétences (bâtiments & staff)
 * [ ] Sécurité/délinquance : afficher un score global
 * [ ] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)

@@ -41,9 +41,17 @@ export class BuildingManager {
   }
 
   public tryPlaceBuildingAt(globalPos: Point, type: BuildingType): boolean {
-    const localPos = this.world.toLocal(globalPos);
-    const gridX = Math.floor(localPos.x / CELL_SIZE);
-    const gridY = Math.floor(localPos.y / CELL_SIZE);
+    const gridPos = this.getGridPositionFromGlobal(globalPos);
+    if (!gridPos) return false;
+
+    return this.tryPlaceBuildingAtGrid(gridPos.gridX, gridPos.gridY, type);
+  }
+
+  public tryPlaceBuildingAtGrid(
+    gridX: number,
+    gridY: number,
+    type: BuildingType
+  ): boolean {
     const key = this.key(gridX, gridY);
 
     if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE)
@@ -59,6 +67,19 @@ export class BuildingManager {
     }
 
     return true;
+  }
+
+  public getGridPositionFromGlobal(globalPos: Point):
+    | { gridX: number; gridY: number }
+    | null {
+    const localPos = this.world.toLocal(globalPos);
+    const gridX = Math.floor(localPos.x / CELL_SIZE);
+    const gridY = Math.floor(localPos.y / CELL_SIZE);
+
+    if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE)
+      return null;
+
+    return { gridX, gridY };
   }
 
   public setDragMode(type: BuildingType | null) {

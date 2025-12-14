@@ -57,6 +57,9 @@ export class Game {
   private pauseStartedAt: number | null = null;
   private activeEvents: ActiveEventSnapshot[] = [];
 
+  private isPaintingRoad = false;
+  private lastPaintedCell: { gridX: number; gridY: number } | null = null;
+
   private lastStatsUpdate = 0;
 
   private onStateChange: (state: GameUIState) => void;
@@ -107,6 +110,9 @@ export class Game {
     );
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
+    this.app.stage.on('pointermove', this.onPointerMove.bind(this));
+    this.app.stage.on('pointerup', this.stopRoadPainting.bind(this));
+    this.app.stage.on('pointerupoutside', this.stopRoadPainting.bind(this));
     this.app.ticker.add(this.onFrameUpdate);
 
     this.emitState();
@@ -209,6 +215,14 @@ export class Game {
 
     const hitBuilding = this.buildingManager.getBuildingAtGlobal(e.global);
     const isBuildingMode = this.buildingManager.getDraggingMode() !== null;
+    const draggingType = this.buildingManager.getDraggingMode();
+
+    if (draggingType?.isRoad) {
+      this.isPaintingRoad = true;
+      this.paintRoadAtGlobal(e.global);
+      e.stopPropagation();
+      return;
+    }
 
     if (hitBuilding) {
       if (isBuildingMode) return;
@@ -229,6 +243,17 @@ export class Game {
         this.deselectPerson();
       }
     }
+  }
+
+  private onPointerMove(e: FederatedPointerEvent) {
+    if (!this.isPaintingRoad) return;
+    this.paintRoadAtGlobal(e.global);
+  }
+
+  private stopRoadPainting() {
+    if (!this.isPaintingRoad) return;
+    this.isPaintingRoad = false;
+    this.lastPaintedCell = null;
   }
 
   public tryPlaceBuilding(globalPos: Point) {
@@ -263,6 +288,67 @@ export class Game {
     new IncomePulse(this.app, center.x, center.y, 1);
 
     this.emitState();
+  }
+
+  private paintRoadAtGlobal(globalPos: Point) {
+    const type = this.buildingManager.getDraggingMode();
+    if (!type?.isRoad) return;
+
+    const gridPos = this.buildingManager.getGridPositionFromGlobal(globalPos);
+    if (!gridPos) return;
+
+    if (
+      this.lastPaintedCell &&
+      gridPos.gridX === this.lastPaintedCell.gridX &&
+      gridPos.gridY === this.lastPaintedCell.gridY
+    ) {
+      return;
+    }
+
+    const start = this.lastPaintedCell ?? gridPos;
+    const path = this.computeManhattanPath(start, gridPos);
+
+    let spent = 0;
+    for (const cell of path) {
+      if (this.money < type.cost) break;
+      const placed = this.buildingManager.tryPlaceBuildingAtGrid(
+        cell.gridX,
+        cell.gridY,
+        type
+      );
+      if (placed) {
+        this.money -= type.cost;
+        spent += type.cost;
+      }
+    }
+
+    if (spent > 0) {
+      this.emitState();
+    }
+
+    this.lastPaintedCell = gridPos;
+  }
+
+  private computeManhattanPath(
+    from: { gridX: number; gridY: number },
+    to: { gridX: number; gridY: number }
+  ): { gridX: number; gridY: number }[] {
+    const path: { gridX: number; gridY: number }[] = [];
+    let cx = from.gridX;
+    let cy = from.gridY;
+    path.push({ gridX: cx, gridY: cy });
+
+    while (cx !== to.gridX) {
+      cx += Math.sign(to.gridX - cx);
+      path.push({ gridX: cx, gridY: cy });
+    }
+
+    while (cy !== to.gridY) {
+      cy += Math.sign(to.gridY - cy);
+      path.push({ gridX: cx, gridY: cy });
+    }
+
+    return path;
   }
 
   public selectBuilding(b: Building) {
