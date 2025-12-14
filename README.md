@@ -11,7 +11,8 @@ Le cœur du jeu repose sur :
 - la gestion fine des flux humains,
 - l’optimisation économique à long terme,
 - la gestion du personnel et de leurs compétences,
-- une **forte composante visuelle personnalisable** (sprites, icônes, effets), indépendante du moteur.
+- une **forte composante visuelle personnalisable** (sprites, icônes, effets), indépendante du moteur,
+- une **pression économique long terme** (temps qui passe, échéances, dette à rembourser).
 
 Aucun contenu explicite n’est représenté :  
 le plaisir de jeu provient **exclusivement des systèmes**, des décisions stratégiques et des interactions entre mécaniques.
@@ -26,9 +27,10 @@ le plaisir de jeu provient **exclusivement des systèmes**, des décisions strat
   - réputation,
   - pression réglementaire abstraite,
   - durabilité économique
+- Survivre et croître sous des **échéances** (dette mensuelle croissante), sans “game over” brutal.
 
 Il n’existe pas de *game over* brutal :  
-le jeu privilégie les **échecs progressifs récupérables** (ville vidée, mauvaise réputation, saturation, etc.).
+le jeu privilégie les **échecs progressifs récupérables** (ville vidée, mauvaise réputation, saturation, dette difficile, etc.).
 
 ---
 
@@ -39,21 +41,25 @@ le jeu privilégie les **échecs progressifs récupérables** (ville vidée, mau
 3. Les personnages (visiteurs & personnel) se déplacent **physiquement sur la carte**, de manière **strictement orthogonale** (jamais en diagonale)
 4. Ils consomment des services ou travaillent dans les bâtiments
 5. Les bâtiments génèrent des **revenus passifs** (aucune mécanique de “clicker” manuel)
-6. Satisfaction & réputation influencent :
+6. Satisfaction, réputation et sécurité influencent :
    - la durée de séjour,
    - les retours,
-   - le type de visiteurs qui arrivent
+   - le type de visiteurs qui arrivent,
+   - certains déblocages / restrictions
 7. Les revenus permettent :
    - d’améliorer les bâtiments,
    - de spécialiser des quartiers,
    - d’étendre la ville,
    - de recruter et former du personnel
+8. Le temps avance (jour/mois/heure locale), et chaque mois il faut **rembourser une dette** qui **grossit**.
 
-👉 Le joueur optimise **des flux visibles et la rétention**, pas seulement des chiffres.
+👉 Le joueur optimise **des flux visibles et la rétention**, sous **contraintes de temps** et d’objectifs financiers.
 
 ---
 
 ## 3️⃣ Types de bâtiments (abstraits)
+
+> Tous les bâtiments sont destinés à devenir **data-driven** (config JSON) et peuvent avoir des **tailles différentes**.
 
 ### A. Hébergements
 **Rôle** : augmenter la durée de séjour et la valeur de chaque visiteur.
@@ -124,6 +130,13 @@ Mécaniques :
   → gestion de la fatigue, santé, moral
 - **Centres de formation** :  
   → XP accélérée, déblocage de spécialisations, re-spécialisation coûteuse
+
+---
+
+### F. Sécurité (à intégrer)
+
+- Score global de **sécurité / délinquance**
+- Possibilité de recruter des **gardes** (personnel) qui **patrouillent** pour influencer sécurité, flux, événements et réputation.
 
 ---
 
@@ -208,7 +221,7 @@ Chaque travailleur possède :
 - Gestion VIP
 - Cuisine / bar
 - Logistique / entretien
-- Sécurité
+- Sécurité (gardes, patrouilles)
 - Administration
 
 Efficacité :
@@ -233,7 +246,14 @@ Les compétences peuvent :
 - une **chance** de déclenchement,
 - un **cooldown**,
 - un **coût** (endurance, moral, argent, etc.),
-- des **effets visuels** associés (icône, VFX discret).
+- des **effets visuels** associés (icône, VFX discret),
+- des **pré-requis** en argent ET en **réputation** (y compris réputation négative).
+
+### Progression des “personnages” (visiteurs)
+
+Les personnages non-staff **n’ont pas d’arbre de compétence** :
+- ils ont une **barre d’expérience**,
+- qui fait évoluer leurs caractéristiques (ex : vitesse, patience, budget, préférences…).
 
 ---
 
@@ -258,6 +278,10 @@ Les goulots d’étranglement génèrent :
 - départs prématurés,
 - pression sur la réputation.
 
+Améliorations UX prévues :
+- construction de routes en “drag” (maintenir pour peindre des routes),
+- barre de construction horizontale en bas.
+
 ---
 
 ## 7️⃣ Temps, rétention & réputation
@@ -269,13 +293,16 @@ Les visiteurs décident de rester selon :
 - diversité des services utilisés,
 - temps d’attente,
 - qualité des déplacements,
-- interactions avec le personnel.
+- interactions avec le personnel,
+- niveau de sécurité.
 
 ### Réputation
 
-- **Réputation locale** : popularité générale
-- **Réputation premium** : attractivité haut de gamme
-- **Pression réglementaire abstraite** : contraintes et risques
+- Réputation globale unique (peut être **négative**)
+- La réputation intervient dans :
+  - les déblocages,
+  - les pré-requis des compétences (bâtiments et staff),
+  - les événements.
 
 Conséquences :
 
@@ -295,14 +322,16 @@ Chaque bâtiment peut débloquer des **passifs** qui influencent :
 - la consommation d’endurance,
 - l’arrivée de visiteurs premium,
 - les revenus passifs,
-- la réputation.
+- la réputation,
+- la sécurité.
 
 Déblocage selon :
 
 - niveau du bâtiment,
 - personnel expérimenté,
 - investissements / recherche,
-- objectifs atteints.
+- objectifs atteints,
+- pré-requis argent + réputation (positive ou négative).
 
 ---
 
@@ -328,7 +357,8 @@ Tous les **acteurs du jeu** peuvent être représentés visuellement via des **s
 - bâtiments,
 - améliorations,
 - compétences actives/passives,
-- effets visuels contextuels (revenus, proc de skill, alertes).
+- effets visuels contextuels (revenus, proc de skill, alertes),
+- “affichages contextuels” (ex : image d’une travailleuse au-dessus d’un bâtiment lors d’un service).
 
 Une représentation minimale (rectangle + icône) doit rester possible, mais le système est conçu pour être **entièrement extensible graphiquement**.
 
@@ -359,7 +389,7 @@ Le jeu doit permettre :
 
 - de **surcharger facilement les assets graphiques** (sprites, portraits, icônes, effets),
 - sans toucher au moteur,
-- via une **hiérarchie de dossiers claire** et des règles de sélection.
+- via une **hiérarchie de dossiers claire** et des règles de sélection (AssetDefinition / SpriteRule).
 
 Exemple de structure indicative :
 
@@ -397,26 +427,25 @@ Le moteur doit pouvoir :
   * aléatoirement,
   * ou via des règles (type, niveau, état, tags),
 * gérer des **fallbacks** (asset par défaut si manquant),
-* permettre packs/graphiques alternatifs (skins, mods).
+* permettre packs/graphiques alternatifs (skins, mods),
+* optimiser l’accès aux images (notamment pour les travailleuses) via cache/atlas/pooling.
 
 ---
 
-### UI & illustrations
+### UI & popups
 
-Les éléments suivants doivent aussi supporter des images/icônes :
+* Les popups d’informations doivent :
 
-* fiches de bâtiments (popover, sidebar),
-* fiches de personnel,
-* compétences (nœuds d’arbres),
-* améliorations,
-* passifs,
-* événements & alertes.
+  * avoir un emplacement prévu pour une **image associée**,
+  * afficher cette image **grisée + floue** si non débloquée,
+  * être **déplaçables** (drag & drop),
+  * rester cohérentes avec les popovers au-dessus des bâtiments.
 
-Chaque donnée de gameplay peut référencer :
+Cas particulier :
 
-* une icône,
-* une illustration,
-* un sprite ou effet animé.
+* Quand un visiteur consomme un service impliquant une travailleuse :
+
+  * afficher temporairement au-dessus du bâtiment une **image de la travailleuse**, avec une animation similaire aux gains (apparition + fade).
 
 ---
 
@@ -428,6 +457,7 @@ Chaque donnée de gameplay peut référencer :
 * Pixi.js
 * TypeScript strict
 * Architecture **data-driven**, moteur agnostique côté design
+* Configurations via JSON (definitions, rules, economy, skills, assets…)
 
 ### Contraintes strictes
 
@@ -441,6 +471,7 @@ Chaque donnée de gameplay peut référencer :
 * 🧱 Routes non interactives (pas de sélection, pas de clic payant)
 * 🎛 UI claire, minimaliste, pédagogique (tooltips courts, explicites)
 * 🎨 Aucun sprite “codé en dur” : tout passe par les définitions d’assets/règles
+* 🧱 Bâtiments de tailles différentes : règles de placement/occupation de grille cohérentes
 
 Le code doit rester :
 
@@ -473,20 +504,24 @@ Le code doit rester :
 
 ---
 
-### ⏳ En cours / prochaines étapes priorisées
+### ⏳ À faire / améliorer (liste priorisée)
 
-* [x] Différenciation claire **visiteurs / personnel**
-* [x] Système d’assignation intelligente du personnel aux bâtiments
-* [x] Implémentation complète du **modèle de données** (ville, passifs, workers, visitors, skills, traits)
-* [x] Moteur de simulation par tick (temps logique unifié)
-* [x] Résolveur de passifs & procs (skills conditionnels + cooldowns)
-* [x] Système de réputation dynamique (locale, premium, régulation)
-* [x] Système de sprites pour visiteurs (map + portrait + icône)
-* [x] Système de sprites pour personnel (map + portrait + icône)
-* [x] Loader d’assets data-driven (hiérarchie de dossiers, packs, overrides)
-* [x] Règles de sélection de sprites (SpriteRule, tags, variantes)
-* [x] Icônes & illustrations de compétences (arbres de skills)
-* [x] Effets visuels légers (skills, revenus, alertes d’état)
+* [ ] Système de jour / mois / heure locale
+* [ ] Dette : chaque mois, remboursement obligatoire ; la dette grossit
+* [ ] Popups d’informations : zone image + image grisée/floue si non débloquée
+* [ ] Popups d’informations : déplaçables (drag)
+* [ ] Arbres de compétences horizontaux + scrollables
+* [ ] Personnages (non-staff) : pas d’arbre ; barre d’XP qui modifie les caractéristiques
+* [ ] Barre de construction horizontale en bas (remplace l’actuelle)
+* [ ] Construction routes en “peinture” : maintenir le bouton pour tirer des routes
+* [ ] Réputation : score global pouvant être négatif ; prérequis argent + réputation (positive/négative) pour compétences (bâtiments & staff)
+* [ ] Sécurité/délinquance : afficher un score global
+* [ ] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)
+* [ ] Service avec travailleuse : afficher son image au-dessus du bâtiment temporairement (comme un gain)
+* [ ] Optimiser l’accès aux images (surtout travailleuses) : cache/atlas/pooling
+* [ ] Bâtiments de tailles différentes : placement, collisions, adjacency routes
+* [ ] Supprimer exemples en dur : tout paramétrable via JSON
+* [ ] Mettre en place les conditions d’activation des compétences via contrats (conditions/procs) comme pour AssetDefinition/SpriteRule
 
 ---
 
@@ -516,3 +551,5 @@ Un projet :
 * prêt pour le modding et l’extension,
 * compréhensible et manipulable par une IA comme par un humain,
 * conçu pour évoluer en **vrai Game Design Document formel** sans réécriture majeure.
+
+---
