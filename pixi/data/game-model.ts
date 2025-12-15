@@ -15,6 +15,7 @@ import {
   VisitorPreferences,
   Worker,
 } from '@/types/data-contract';
+import { SKILL_PROC_DEFINITIONS } from './skill-procs';
 
 const createOccupants = (visitorsInside: number, workersInside: number): BuildingOccupants => ({
   visitorsInside,
@@ -163,21 +164,7 @@ const conciergeNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_welcome' },
       tags: ['concierge'],
     },
-    procs: [
-      {
-        id: 'welcomeCharm_proc',
-        trigger: 'onIncomeTick',
-        spec: { chance: 0.35, cooldownTicks: 2 },
-        effects: [
-          {
-            target: 'building',
-            stat: 'income',
-            value: 6,
-            mode: 'additive',
-          },
-        ],
-      },
-    ],
+    procs: [SKILL_PROC_DEFINITIONS.welcomeCharm_proc],
   },
   vipHandler: {
     id: 'vipHandler',
@@ -196,21 +183,7 @@ const conciergeNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_vip' },
       tags: ['premium'],
     },
-    procs: [
-      {
-        id: 'vipHandler_proc',
-        trigger: 'onVisitorConsume',
-        spec: { chance: 0.25, cooldownTicks: 4 },
-        effects: [
-          {
-            target: 'building',
-            stat: 'income',
-            value: 0.08,
-            mode: 'multiplicative',
-          },
-        ],
-      },
-    ],
+    procs: [SKILL_PROC_DEFINITIONS.vipHandler_proc],
   },
 };
 
@@ -232,21 +205,7 @@ const technicianNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_toolkit' },
       tags: ['maintenance'],
     },
-    procs: [
-      {
-        id: 'quickFix_proc',
-        trigger: 'onIncomeTick',
-        spec: { chance: 0.3, cooldownTicks: 3 },
-        effects: [
-          {
-            target: 'building',
-            stat: 'interval',
-            value: -120,
-            mode: 'additive',
-          },
-        ],
-      },
-    ],
+    procs: [SKILL_PROC_DEFINITIONS.quickFix_proc],
   },
   riskMonitor: {
     id: 'riskMonitor',
@@ -315,16 +274,7 @@ const guardNodes: Record<string, SkillNode> = {
       preferredRuleIds: { skillIcon: 'skill_icon_patrol' },
       tags: ['guard', 'night'],
     },
-    procs: [
-      {
-        id: 'nightWatch_proc',
-        trigger: 'onIncomeTick',
-        spec: { chance: 0.25, cooldownTicks: 3 },
-        effects: [
-          { target: 'building', stat: 'interval', value: -120, mode: 'additive' },
-        ],
-      },
-    ],
+    procs: [SKILL_PROC_DEFINITIONS.nightWatch_proc],
   },
 };
 

@@ -13,6 +13,8 @@ export class Building extends Container {
   public gridX: number;
   public gridY: number;
   public type: BuildingType;
+  public readonly widthCells: number;
+  public readonly heightCells: number;
   public state: BuildingState;
   private incomeProgressMs = 0;
 
@@ -28,6 +30,8 @@ export class Building extends Container {
     this.gridX = gx;
     this.gridY = gy;
     this.type = type;
+    this.widthCells = Math.max(1, type.width);
+    this.heightCells = Math.max(1, type.height);
 
     this.unlockedPassives = BUILDING_PASSIVES_BY_TYPE[type.id] ?? [];
 
@@ -42,8 +46,8 @@ export class Building extends Container {
     };
 
     this.position.set(
-      gx * CELL_SIZE + CELL_SIZE / 2,
-      gy * CELL_SIZE + CELL_SIZE / 2
+      (gx + this.widthCells / 2) * CELL_SIZE,
+      (gy + this.heightCells / 2) * CELL_SIZE
     );
 
     this.visual = new Graphics();
@@ -111,26 +115,32 @@ export class Building extends Container {
   private drawVisual() {
     this.visual.clear();
 
-    const size = CELL_SIZE - 4;
-    const offset = -size / 2;
+    const widthPx = this.widthCells * CELL_SIZE - 4;
+    const heightPx = this.heightCells * CELL_SIZE - 4;
+    const offsetX = -widthPx / 2;
+    const offsetY = -heightPx / 2;
 
     this.visual
-      .rect(offset, offset, size, size)
+      .rect(offsetX, offsetY, widthPx, heightPx)
       .fill(this.type.color)
       .stroke({ width: 2, color: 0xffffff });
 
     if (this.type.isRoad) return;
 
-    const dotsStart = offset + 6;
+    const dotsStart = offsetX + 6;
     for (let i = 0; i < this.state.level && i < 5; i++) {
-      this.visual.circle(dotsStart + i * 8, -offset - 6, 2).fill(0xffffff);
+      this.visual
+        .circle(dotsStart + i * 8, offsetY + 6, 2)
+        .fill(0xffffff);
     }
   }
 
   private drawSelectionRing() {
     this.selectionRing.clear();
+    const widthPx = this.widthCells * CELL_SIZE;
+    const heightPx = this.heightCells * CELL_SIZE;
     this.selectionRing
-      .rect(-CELL_SIZE / 2 - 4, -CELL_SIZE / 2 - 4, CELL_SIZE + 8, CELL_SIZE + 8)
+      .rect(-widthPx / 2 - 4, -heightPx / 2 - 4, widthPx + 8, heightPx + 8)
       .stroke({ width: 4, color: 0xffb700, alpha: 0.8 });
     this.selectionRing.visible = false;
   }

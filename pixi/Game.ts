@@ -24,10 +24,18 @@ import { WORKER_ROSTER } from './data/game-model';
 import { Worker } from '@/types/data-contract';
 import { computeWorkerCost } from './data/recruitment';
 
+export interface SelectedBuildingComputed {
+  incomePerTick: number;
+  incomeWithEvents: number;
+  intervalMs: number;
+  eventMultiplier: number;
+}
+
 export interface GameUIState {
   money: number;
   totalClicks: number;
   selectedBuildingState: BuildingState | null;
+  selectedBuildingComputed: SelectedBuildingComputed | null;
   selectedPerson: SelectedPersonSnapshot | null;
   isPaused: boolean;
   movingPeopleCount: number;
@@ -66,6 +74,7 @@ export class Game {
   private totalClicks: number = 0;
   private selectedBuilding: Building | null = null;
   private selectedPerson: SelectedPersonSnapshot | null = null;
+  private selectedBuildingComputed: SelectedBuildingComputed | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
   private activeEvents: ActiveEventSnapshot[] = [];
@@ -156,6 +165,8 @@ export class Game {
     const eventModifiers = this.eventSystem.update(ctx);
     this.activeEvents = eventModifiers.activeEvents;
 
+    this.selectedBuildingComputed = null;
+
     const timeAdvance = this.timeSystem.advance(ctx.deltaMs);
     if (timeAdvance.monthsAdvanced > 0) {
       for (let i = 0; i < timeAdvance.monthsAdvanced; i++) {
@@ -174,6 +185,22 @@ export class Game {
       }
 
       const completedCycles = building.accumulateIncomeProgress(ctx.deltaMs);
+
+      if (
+        this.selectedBuilding &&
+        building.state.instanceId === this.selectedBuilding.state.instanceId
+      ) {
+        const baseIncome = skillSnapshot?.incomePerTick ?? building.getIncome();
+        this.selectedBuildingComputed = {
+          incomePerTick: baseIncome,
+          incomeWithEvents: Math.floor(
+            baseIncome * Math.max(0, eventModifiers.incomeMultiplier)
+          ),
+          intervalMs: skillSnapshot?.intervalMs ?? building.getBaseIntervalMs(),
+          eventMultiplier: eventModifiers.incomeMultiplier,
+        };
+      }
+
       for (let i = 0; i < completedCycles; i++) {
         this.harvestBuilding(
           building,
@@ -269,6 +296,9 @@ export class Game {
 
     if (e.button === 2) {
       this.setDragMode(null);
+      this.deselectBuilding();
+      this.deselectPerson();
+      this.stopRoadPainting();
       return;
     }
 
@@ -544,6 +574,7 @@ export class Game {
       selectedBuildingState: this.selectedBuilding
         ? { ...this.selectedBuilding.state }
         : null,
+      selectedBuildingComputed: this.selectedBuildingComputed,
       selectedPerson: this.selectedPerson
         ? { ...this.selectedPerson }
         : null,

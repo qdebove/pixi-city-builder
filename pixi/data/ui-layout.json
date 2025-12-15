@@ -1,0 +1,69 @@
+{
+  "menuTabs": [
+    {
+      "id": "buildings",
+      "label": "Bâtiments",
+      "description": "Bibliothèque et fiches détaillées",
+      "layout": "vertical"
+    },
+    {
+      "id": "skills",
+      "label": "Talents",
+      "description": "Arbres simplifiés par catégorie",
+      "layout": "vertical"
+    },
+    {
+      "id": "security",
+      "label": "Sécurité",
+      "description": "Couverture et présence des gardes"
+    },
+    {
+      "id": "people",
+      "label": "Personnes",
+      "description": "Visiteurs et personnel actifs"
+    },
+    {
+      "id": "recruitment",
+      "label": "Recrutement",
+      "description": "Contrats et signaux opérationnels",
+      "layout": "vertical"
+    }
+  ],
+  "skillPanels": [
+    {
+      "id": "staffTrees",
+      "title": "Talents du personnel",
+      "description": "Arbres verticaux par métier avec résumé des nœuds.",
+      "source": "workerTrees",
+      "accent": "emerald"
+    },
+    {
+      "id": "visitorTraits",
+      "title": "Traits visiteurs",
+      "description": "Traits narratifs débloqués pour les profils visiteurs.",
+      "source": "visitorTraits",
+      "accent": "amber"
+    },
+    {
+      "id": "buildingPassives",
+      "title": "Passifs de bâtiments",
+      "description": "Effets liés aux plans pour anticiper les combinaisons.",
+      "source": "buildingPassives",
+      "accent": "violet"
+    }
+  ],
+  "recruitmentPanels": [
+    {
+      "id": "candidates",
+      "title": "Candidatures disponibles",
+      "description": "Choisir un profil à signer dès que le dossier est prêt.",
+      "content": "candidates"
+    },
+    {
+      "id": "signals",
+      "title": "Signaux & contexte",
+      "description": "Budget, réputation et besoins mis en colonne verticale.",
+      "content": "signals"
+    }
+  ]
+}

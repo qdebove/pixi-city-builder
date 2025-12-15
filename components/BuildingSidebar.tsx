@@ -152,6 +152,26 @@ export const BuildingSidebar: React.FC<SidebarProps> = ({
                               </>
                             )}
                           </span>
+                          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                            <span
+                              className={`rounded-full px-2 py-0.5 font-semibold ${
+                                type.requiresRoadAccess === false
+                                  ? 'bg-emerald-900/50 text-emerald-100 border border-emerald-700/70'
+                                  : 'bg-amber-900/40 text-amber-100 border border-amber-700/70'
+                              }`}
+                            >
+                              {type.isRoad
+                                ? 'Pose de route'
+                                : type.requiresRoadAccess === false
+                                ? 'Autonome (hors route)'
+                                : 'Accès route requis'}
+                            </span>
+                            {type.requiresRoadAccess !== false && !type.isRoad && (
+                              <span className="rounded-full bg-slate-900/60 px-2 py-0.5 font-semibold text-slate-200">
+                                Adjacent à une route
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-200">

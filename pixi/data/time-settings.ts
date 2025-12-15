@@ -1,18 +1,11 @@
 import { DebtSettings } from '../DebtSystem';
 import { TimeSettings } from '../TimeSystem';
+import rawTimeSettings from './time-settings.json';
 
-export const TIME_SETTINGS: TimeSettings = {
-  msPerHour: 900,
-  hoursPerDay: 24,
-  daysPerMonth: 30,
-  startDay: 1,
-  startMonth: 1,
-  startYear: 1,
+const parsedSettings = rawTimeSettings as unknown as {
+  time: TimeSettings;
+  debt: DebtSettings;
 };
 
-export const DEBT_SETTINGS: DebtSettings = {
-  startingBalance: 5200,
-  monthlyGrowthRate: 0.08,
-  minimumPayment: 350,
-  paymentRatio: 0.28,
-};
+export const TIME_SETTINGS: TimeSettings = parsedSettings.time;
+export const DEBT_SETTINGS: DebtSettings = parsedSettings.debt;

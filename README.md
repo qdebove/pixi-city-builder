@@ -519,9 +519,9 @@ Le code doit rester :
 * [x] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)
 * [x] Service avec travailleuse : afficher son image au-dessus du bâtiment temporairement (comme un gain)
 * [x] Optimiser l’accès aux images (surtout travailleuses) : cache/atlas/pooling
-* [ ] Bâtiments de tailles différentes : placement, collisions, adjacency routes
-* [ ] Supprimer exemples en dur : tout paramétrable via JSON
-* [ ] Mettre en place les conditions d’activation des compétences via contrats (conditions/procs) comme pour AssetDefinition/SpriteRule
+* [x] Bâtiments de tailles différentes : placement, collisions, adjacency routes
+* [x] Supprimer exemples en dur : tout paramétrable via JSON
+* [x] Mettre en place les conditions d’activation des compétences via contrats (conditions/procs) comme pour AssetDefinition/SpriteRule
 
 ---
 

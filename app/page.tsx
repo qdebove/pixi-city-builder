@@ -23,6 +23,7 @@ const Home: React.FC = () => {
     money: 1000,
     totalClicks: 0,
     selectedBuildingState: null,
+    selectedBuildingComputed: null,
     selectedPerson: null,
     isPaused: false,
     movingPeopleCount: 0,
@@ -145,6 +146,7 @@ const Home: React.FC = () => {
     <BuildingDetails
       type={selectedType}
       state={gameState.selectedBuildingState}
+      computed={gameState.selectedBuildingComputed}
       money={gameState.money}
       onUpgrade={handleUpgrade}
     />

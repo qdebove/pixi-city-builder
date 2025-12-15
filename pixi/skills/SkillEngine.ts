@@ -152,6 +152,10 @@ export class SkillEngine {
         buildingId: building.state.instanceId,
         staffCount: building.getStaffMembers().length,
         visitors: building.getVisitors().length,
+        occupancy: {
+          visitorRatio: building.getOccupancyRatioFor('visitor'),
+          staffRatio: building.getOccupancyRatioFor('staff'),
+        },
       },
     });
 
