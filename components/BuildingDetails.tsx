@@ -24,6 +24,11 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const staffCount = state.occupants.staff || 0;
   const staffCapacity = type.staffCapacity;
   const accentColor = `#${type.color.toString(16).padStart(6, '0')}`;
+  const roadLabel = type.isRoad
+    ? 'Infrastructure'
+    : type.requiresRoadAccess === false
+    ? 'Autonome (hors route)'
+    : 'Doit toucher une route';
 
   const ratio =
     type.capacity > 0
@@ -52,6 +57,7 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
         <InfoImageSlot
           label={type.name}
           accentColor={accentColor}
+          showPreviewOnHover
         />
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-bold text-sky-300">
@@ -62,6 +68,22 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
             prête à être grisée/floutée si la fiche est verrouillée par une future
             condition de déblocage.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                type.requiresRoadAccess === false
+                  ? 'bg-emerald-900/40 text-emerald-100 border border-emerald-700/70'
+                  : 'bg-amber-900/40 text-amber-100 border border-amber-700/70'
+              }`}
+            >
+              {roadLabel}
+            </span>
+            {type.requiresRoadAccess !== false && !type.isRoad && (
+              <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold text-slate-100">
+                Adjacence route obligatoire
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

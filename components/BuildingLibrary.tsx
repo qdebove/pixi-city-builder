@@ -94,6 +94,7 @@ export const BuildingLibrary: React.FC<BuildingLibraryProps> = ({ totalClicks })
                   accentColor={color}
                   locked={!unlockState.unlocked}
                   lockReason={unlockState.reason}
+                  showPreviewOnHover
                   fallbackContent={
                     <span className="text-2xl font-black text-white/80">
                       {type.name.slice(0, 1)}
@@ -145,6 +146,22 @@ export const BuildingLibrary: React.FC<BuildingLibraryProps> = ({ totalClicks })
                     {type.staffCapacity > 0
                       ? `${type.staffCapacity} postes`
                       : '—'}
+                  </dd>
+                </div>
+                <div className="rounded border border-slate-700/60 bg-slate-900/50 p-2">
+                  <dt className="text-[11px] uppercase text-slate-400">Accès</dt>
+                  <dd
+                    className={`font-mono ${
+                      type.requiresRoadAccess === false
+                        ? 'text-emerald-300'
+                        : 'text-amber-200'
+                    }`}
+                  >
+                    {type.isRoad
+                      ? 'Infrastructure'
+                      : type.requiresRoadAccess === false
+                      ? 'Autonome (hors route)'
+                      : 'Doit toucher une route'}
                   </dd>
                 </div>
                 {!type.isRoad && (
