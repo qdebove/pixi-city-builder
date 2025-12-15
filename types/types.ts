@@ -5,6 +5,7 @@ export interface BuildingType {
   name: string;
   cost: number;
   baseIncome: number;
+  maintenancePerDay?: number;
   color: number;
   maxLevel: number;
   baseHealth: number;
@@ -29,6 +30,7 @@ export interface BuildingState {
   currentOccupants: number;
   occupants: Record<PersonRole, number>;
   productionIntervalMs: number;
+  districtId?: string;
 }
 
 export const CELL_SIZE = 64;
@@ -41,6 +43,7 @@ export const BUILDING_TYPES: BuildingType[] = (
   buildingTypeData as unknown as BuildingType[]
 ).map((type) => ({
   ...type,
+  maintenancePerDay: type.maintenancePerDay ?? 0,
   width: normalizeDimension(type.width),
   height: normalizeDimension(type.height),
   requiresRoadAccess: type.requiresRoadAccess ?? !type.isRoad,

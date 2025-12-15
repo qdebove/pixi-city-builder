@@ -454,7 +454,8 @@ const workerTemplate = (
   id: string,
   job: JobID,
   traits: Trait[],
-  identity: Worker['identity']
+  identity: Worker['identity'],
+  salaryPerDay: number
 ): Worker => ({
   id,
   identity,
@@ -482,6 +483,7 @@ const workerTemplate = (
       })(),
     },
   },
+  salaryPerDay,
   traits,
 });
 
@@ -497,7 +499,8 @@ export const WORKER_ROSTER: Worker[] = [
       origin: 'Ancienne hôtesse VIP',
       title: 'Concierge solaire',
       motto: 'Chaque arrivée mérite un sourire.',
-    }
+    },
+    45
   ),
   workerTemplate(
     'worker_jade',
@@ -510,7 +513,8 @@ export const WORKER_ROSTER: Worker[] = [
       origin: 'Ex-maintenance événementielle',
       title: 'Technicienne méthodique',
       motto: 'Prévenir plutôt que réparer en urgence.',
-    }
+    },
+    58
   ),
   workerTemplate(
     'worker_salma',
@@ -523,7 +527,8 @@ export const WORKER_ROSTER: Worker[] = [
       origin: 'Garde itinérante',
       title: 'Patrouilleuse discrète',
       motto: 'Une présence visible suffit souvent à calmer les ardeurs.',
-    }
+    },
+    62
   ),
 ];
 

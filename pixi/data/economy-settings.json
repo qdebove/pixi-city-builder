@@ -1,0 +1,11 @@
+{
+  "taxes": {
+    "rate": 0.09,
+    "minimum": 120,
+    "progressiveThreshold": 1200,
+    "progressiveRate": 0.14
+  },
+  "maintenance": {
+    "bufferMultiplier": 1.05
+  }
+}
