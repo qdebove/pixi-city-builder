@@ -1,0 +1,16 @@
+{
+  "time": {
+    "msPerHour": 900,
+    "hoursPerDay": 24,
+    "daysPerMonth": 30,
+    "startDay": 1,
+    "startMonth": 1,
+    "startYear": 1
+  },
+  "debt": {
+    "startingBalance": 5200,
+    "monthlyGrowthRate": 0.08,
+    "minimumPayment": 350,
+    "paymentRatio": 0.28
+  }
+}

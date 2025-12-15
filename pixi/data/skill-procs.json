@@ -1,0 +1,57 @@
+[
+  {
+    "id": "welcomeCharm_proc",
+    "trigger": "onIncomeTick",
+    "conditions": {
+      "all": [
+        { "path": "visitors", "op": ">", "value": 0 },
+        { "path": "staffCount", "op": ">=", "value": 1 }
+      ]
+    },
+    "spec": { "chance": 0.35, "cooldownTicks": 2 },
+    "effects": [
+      { "target": "building", "stat": "income", "value": 6, "mode": "additive" }
+    ]
+  },
+  {
+    "id": "vipHandler_proc",
+    "trigger": "onIncomeTick",
+    "conditions": {
+      "all": [
+        { "path": "occupancy.visitorRatio", "op": ">=", "value": 0.6 },
+        { "path": "staffCount", "op": ">=", "value": 1 }
+      ]
+    },
+    "spec": { "chance": 0.25, "cooldownTicks": 4 },
+    "effects": [
+      { "target": "building", "stat": "income", "value": 0.08, "mode": "multiplicative" }
+    ]
+  },
+  {
+    "id": "quickFix_proc",
+    "trigger": "onIncomeTick",
+    "conditions": {
+      "path": "staffCount",
+      "op": ">=",
+      "value": 1
+    },
+    "spec": { "chance": 0.3, "cooldownTicks": 3 },
+    "effects": [
+      { "target": "building", "stat": "interval", "value": -120, "mode": "additive" }
+    ]
+  },
+  {
+    "id": "nightWatch_proc",
+    "trigger": "onIncomeTick",
+    "conditions": {
+      "all": [
+        { "path": "staffCount", "op": ">=", "value": 2 },
+        { "path": "occupancy.staffRatio", "op": ">=", "value": 0.5 }
+      ]
+    },
+    "spec": { "chance": 0.25, "cooldownTicks": 3 },
+    "effects": [
+      { "target": "building", "stat": "interval", "value": -120, "mode": "additive" }
+    ]
+  }
+]

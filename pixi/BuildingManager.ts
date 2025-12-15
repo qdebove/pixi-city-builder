@@ -33,7 +33,7 @@ export class BuildingManager {
     const gridX = Math.floor(localPos.x / CELL_SIZE);
     const gridY = Math.floor(localPos.y / CELL_SIZE);
 
-    if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) {
+    if (!this.isWithinGrid(gridX, gridY)) {
       return null;
     }
 
@@ -52,15 +52,13 @@ export class BuildingManager {
     gridY: number,
     type: BuildingType
   ): boolean {
-    const key = this.key(gridX, gridY);
-
-    if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE)
-      return false;
-    if (this.buildingsMap.has(key)) return false;
+    if (!this.isWithinBounds(gridX, gridY, type)) return false;
+    if (!this.isAreaFree(gridX, gridY, type)) return false;
+    if (!this.hasRequiredRoadAdjacency(gridX, gridY, type)) return false;
 
     const building = new Building(gridX, gridY, type);
     this.world.addChild(building);
-    this.buildingsMap.set(key, building);
+    this.registerBuildingFootprint(building);
 
     if (this.ghost) {
       this.setDragMode(this.draggingType);
@@ -76,8 +74,7 @@ export class BuildingManager {
     const gridX = Math.floor(localPos.x / CELL_SIZE);
     const gridY = Math.floor(localPos.y / CELL_SIZE);
 
-    if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE)
-      return null;
+    if (!this.isWithinGrid(gridX, gridY)) return null;
 
     return { gridX, gridY };
   }
@@ -92,8 +89,10 @@ export class BuildingManager {
 
     if (type) {
       const ghost = new Graphics();
+      const widthPx = type.width * CELL_SIZE;
+      const heightPx = type.height * CELL_SIZE;
       ghost
-        .rect(-CELL_SIZE / 2, -CELL_SIZE / 2, CELL_SIZE, CELL_SIZE)
+        .rect(-widthPx / 2, -heightPx / 2, widthPx, heightPx)
         .fill({ color: type.color, alpha: 0.35 });
       ghost.alpha = 0.9;
       this.ghost = ghost;
@@ -107,7 +106,7 @@ export class BuildingManager {
   }
 
   public getBuildings(): Building[] {
-    return Array.from(this.buildingsMap.values());
+    return Array.from(new Set(this.buildingsMap.values()));
   }
 
   public getRoadBuildings(): Building[] {
@@ -115,22 +114,14 @@ export class BuildingManager {
   }
 
   public getRoadNeighbors(b: Building): Building[] {
-    const res: Building[] = [];
-    const dirs = [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ];
-    for (const [dx, dy] of dirs) {
-      const gx = b.gridX + dx;
-      const gy = b.gridY + dy;
+    const res = new Set<Building>();
+    this.forEachPerimeterNeighbor(b.gridX, b.gridY, b.type, (gx, gy) => {
       const nb = this.getBuildingAtGrid(gx, gy);
-      if (nb && nb.type.isRoad) {
-        res.push(nb);
+      if (nb?.type.isRoad) {
+        res.add(nb);
       }
-    }
-    return res;
+    });
+    return Array.from(res);
   }
 
   public getRoadBuildingAt(gx: number, gy: number): Building | null {
@@ -144,7 +135,7 @@ export class BuildingManager {
   }
 
   public getAdjacentNonRoadBuildings(gx: number, gy: number): Building[] {
-    const res: Building[] = [];
+    const res = new Map<string, Building>();
     const dirs = [
       [1, 0],
       [-1, 0],
@@ -158,10 +149,102 @@ export class BuildingManager {
         !b.type.isRoad &&
         (b.type.capacity > 0 || b.type.staffCapacity > 0)
       ) {
-        res.push(b);
+        res.set(b.state.instanceId, b);
       }
     }
-    return res;
+    return Array.from(res.values());
+  }
+
+  private isWithinGrid(gridX: number, gridY: number) {
+    return gridX >= 0 && gridX < GRID_SIZE && gridY >= 0 && gridY < GRID_SIZE;
+  }
+
+  private isWithinBounds(gridX: number, gridY: number, type: BuildingType) {
+    const width = Math.max(1, type.width);
+    const height = Math.max(1, type.height);
+    return (
+      gridX >= 0 &&
+      gridY >= 0 &&
+      gridX + width <= GRID_SIZE &&
+      gridY + height <= GRID_SIZE
+    );
+  }
+
+  private isAreaFree(gridX: number, gridY: number, type: BuildingType) {
+    let free = true;
+    this.forEachFootprintCell(gridX, gridY, type, (x, y) => {
+      if (this.buildingsMap.has(this.key(x, y))) {
+        free = false;
+      }
+    });
+    return free;
+  }
+
+  private hasRequiredRoadAdjacency(
+    gridX: number,
+    gridY: number,
+    type: BuildingType
+  ): boolean {
+    if (type.isRoad || type.requiresRoadAccess === false) return true;
+
+    let hasRoad = false;
+    this.forEachPerimeterNeighbor(gridX, gridY, type, (x, y) => {
+      if (this.getRoadBuildingAt(x, y)) {
+        hasRoad = true;
+      }
+    });
+    return hasRoad;
+  }
+
+  private registerBuildingFootprint(building: Building) {
+    this.forEachFootprintCell(
+      building.gridX,
+      building.gridY,
+      building.type,
+      (x, y) => {
+        this.buildingsMap.set(this.key(x, y), building);
+      }
+    );
+  }
+
+  private forEachFootprintCell(
+    gridX: number,
+    gridY: number,
+    type: BuildingType,
+    cb: (x: number, y: number) => void
+  ) {
+    const width = Math.max(1, type.width);
+    const height = Math.max(1, type.height);
+    for (let x = gridX; x < gridX + width; x++) {
+      for (let y = gridY; y < gridY + height; y++) {
+        cb(x, y);
+      }
+    }
+  }
+
+  private forEachPerimeterNeighbor(
+    gridX: number,
+    gridY: number,
+    type: BuildingType,
+    cb: (x: number, y: number) => void
+  ) {
+    const width = Math.max(1, type.width);
+    const height = Math.max(1, type.height);
+
+    const visitNeighbor = (x: number, y: number) => {
+      if (!this.isWithinGrid(x, y)) return;
+      cb(x, y);
+    };
+
+    for (let x = gridX; x < gridX + width; x++) {
+      visitNeighbor(x, gridY - 1);
+      visitNeighbor(x, gridY + height);
+    }
+
+    for (let y = gridY; y < gridY + height; y++) {
+      visitNeighbor(gridX - 1, y);
+      visitNeighbor(gridX + width, y);
+    }
   }
 
   private onPointerMove(e: FederatedPointerEvent) {
@@ -171,16 +254,20 @@ export class BuildingManager {
     const gridX = Math.floor(localPos.x / CELL_SIZE);
     const gridY = Math.floor(localPos.y / CELL_SIZE);
 
-    const centerX = gridX * CELL_SIZE + CELL_SIZE / 2;
-    const centerY = gridY * CELL_SIZE + CELL_SIZE / 2;
+    const centerX = (gridX + this.draggingType.width / 2) * CELL_SIZE;
+    const centerY = (gridY + this.draggingType.height / 2) * CELL_SIZE;
 
     this.ghost.position.set(centerX, centerY);
 
-    const key = this.key(gridX, gridY);
-    const isOccupied = this.buildingsMap.has(key);
-    const outOfBounds =
-      gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE;
+    const isOccupied = !this.isAreaFree(gridX, gridY, this.draggingType);
+    const outOfBounds = !this.isWithinBounds(gridX, gridY, this.draggingType);
+    const hasRoadAccess = this.hasRequiredRoadAdjacency(
+      gridX,
+      gridY,
+      this.draggingType
+    );
 
-    this.ghost.tint = isOccupied || outOfBounds ? 0xff0000 : 0xffffff;
+    this.ghost.tint =
+      isOccupied || outOfBounds || !hasRoadAccess ? 0xff0000 : 0xffffff;
   }
 }
