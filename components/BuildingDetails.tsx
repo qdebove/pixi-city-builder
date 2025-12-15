@@ -47,11 +47,18 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
       ? Math.min(1, staffCount / staffCapacity)
       : 0;
   const computedIncomePerTick = computed?.incomePerTick ?? null;
-  const currentTickIncome =
-    computedIncomePerTick ??
-    Math.floor(baseIncome * (1 + ratio) * (1 + staffRatio * type.staffEfficiency));
-  const incomeWithEvents = computed?.incomeWithEvents ?? currentTickIncome;
+  const occupancyMultiplier = (1 + ratio) * (1 + staffRatio * type.staffEfficiency);
+  const incomeWithOccupancy = Math.floor(baseIncome * occupancyMultiplier);
+  const currentTickIncome = computedIncomePerTick ?? incomeWithOccupancy;
+  const occupancyDelta = incomeWithOccupancy - baseIncome;
+  const passiveDelta = currentTickIncome - incomeWithOccupancy;
   const eventMultiplier = computed?.eventMultiplier ?? 1;
+  const incomeWithEvents =
+    computed?.incomeWithEvents ??
+    Math.floor(currentTickIncome * Math.max(0, eventMultiplier));
+
+  const formatSignedAmount = (amount: number) =>
+    `${amount >= 0 ? '+' : '-'}${Math.abs(amount)}€ / tick`;
 
   const effectiveIntervalMs = computed?.intervalMs ?? state.productionIntervalMs;
   const ticksPerSecond =
@@ -148,9 +155,15 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                 <span className="font-mono">{baseIncome}€ / tick</span>
               </p>
               <p className="flex justify-between">
-                <span>Passifs & occupants</span>
-                <span className="font-mono">
-                  {currentTickIncome}€ / tick
+                <span>Occupation</span>
+                <span className="font-mono text-emerald-200">
+                  {formatSignedAmount(occupancyDelta)}
+                </span>
+              </p>
+              <p className="flex justify-between">
+                <span>Passifs & compétences</span>
+                <span className="font-mono text-emerald-200">
+                  {formatSignedAmount(passiveDelta)}
                 </span>
               </p>
               {type.capacity > 0 && (
