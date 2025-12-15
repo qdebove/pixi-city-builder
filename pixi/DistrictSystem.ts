@@ -15,6 +15,7 @@ export class DistrictSystem {
   private themes: Map<string, DistrictThemeDefinition> = new Map();
   private generation: DistrictGenerationSettings;
   private zones: DistrictZoneDefinition[] = [];
+  private readonly zoneSpacing = 1;
 
   constructor() {
     this.themes = new Map(DISTRICT_DEFINITIONS.themes.map((t) => [t.id, t]));
@@ -50,7 +51,7 @@ export class DistrictSystem {
       const y = this.randomInt(0, maxY);
 
       const overlaps = zones.some((zone) =>
-        this.intersects(zone.area, { x, y, width, height })
+        this.intersectsWithMargin(zone.area, { x, y, width, height }, this.zoneSpacing)
       );
       if (overlaps) continue;
 
@@ -138,15 +139,16 @@ export class DistrictSystem {
     return entries[this.randomInt(0, entries.length - 1)];
   }
 
-  private intersects(
+  private intersectsWithMargin(
     a: { x: number; y: number; width: number; height: number },
-    b: { x: number; y: number; width: number; height: number }
+    b: { x: number; y: number; width: number; height: number },
+    margin: number = 0
   ): boolean {
     return !(
-      a.x + a.width < b.x ||
-      a.x > b.x + b.width ||
-      a.y + a.height < b.y ||
-      a.y > b.y + b.height
+      a.x + a.width + margin <= b.x ||
+      a.x - margin >= b.x + b.width ||
+      a.y + a.height + margin <= b.y ||
+      a.y - margin >= b.y + b.height
     );
   }
 }
