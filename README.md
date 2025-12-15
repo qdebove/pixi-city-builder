@@ -312,14 +312,14 @@ Les visiteurs :
 
 ### ⏳ À faire / améliorer
 
-- [ ] Génération de carte initiale (taille définie) + extension via achat
-- [ ] Districts aléatoires visibles (taille/position aléatoires) + règles data-driven
-- [ ] Construction limitée à la zone débloquée
-- [ ] Économie multi-échelles (ponctuel/journalier/mensuel) appliquée à tous bâtiments
-- [ ] Coûts mensuels (entretien bâtiments, salaires, etc.)
-- [ ] Revenus ponctuels (consommation) + revenus journaliers
-- [ ] Intégration districts → bonus/malus + déblocages
-- [ ] Ajuster tooltips pour expliquer les calculs par temporalité (jour/mois/ponctuel)
+- [x] Génération de carte initiale (taille définie) + extension via achat
+- [x] Districts aléatoires visibles (taille/position aléatoires) + règles data-driven
+- [x] Construction limitée à la zone débloquée
+- [x] Économie multi-échelles (ponctuel/journalier/mensuel) appliquée à tous bâtiments
+- [x] Coûts mensuels (entretien bâtiments, salaires, etc.)
+- [x] Revenus ponctuels (consommation) + revenus journaliers
+- [x] Intégration districts → bonus/malus + déblocages
+- [x] Ajuster tooltips pour expliquer les calculs par temporalité (jour/mois/ponctuel)
 
 ### 🚀 Vision long terme
 

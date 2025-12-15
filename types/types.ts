@@ -18,6 +18,7 @@ export interface BuildingType {
   width: number;
   height: number;
   requiresRoadAccess?: boolean;
+  dailyPassiveIncome?: number;
 }
 
 export type PersonRole = 'visitor' | 'staff';
@@ -44,6 +45,7 @@ export const BUILDING_TYPES: BuildingType[] = (
 ).map((type) => ({
   ...type,
   maintenancePerDay: type.maintenancePerDay ?? 0,
+  dailyPassiveIncome: type.dailyPassiveIncome ?? 0,
   width: normalizeDimension(type.width),
   height: normalizeDimension(type.height),
   requiresRoadAccess: type.requiresRoadAccess ?? !type.isRoad,

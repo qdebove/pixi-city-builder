@@ -2,10 +2,13 @@ import { Building } from './Building';
 import { EconomySettings } from './data/economy-settings';
 import { TimeSettings } from './TimeSystem';
 import { Worker } from '@/types/data-contract';
+import { calculateIncome } from '@/types/types';
 
 export interface EconomySnapshot {
   dailyMaintenance: number;
   dailySalaries: number;
+  dailyPassiveIncome: number;
+  lastDailyIncome: number;
   lastMonthlyTax: number;
   monthIncome: number;
   monthExpenses: number;
@@ -20,6 +23,8 @@ export class EconomySystem {
   private lastMonthlyTax = 0;
   private cachedMaintenancePerDay = 0;
   private cachedSalariesPerDay = 0;
+  private cachedPassiveIncomePerDay = 0;
+  private lastDailyIncome = 0;
 
   constructor(settings: EconomySettings, time: TimeSettings) {
     this.settings = settings;
@@ -34,6 +39,29 @@ export class EconomySystem {
   public recordExpense(amount: number) {
     if (amount <= 0) return;
     this.monthExpenses += amount;
+  }
+
+  public applyDailyIncome(buildings: Building[], daysAdvanced: number): number {
+    const perDay = buildings.reduce((acc, building) => {
+      if (building.type.dailyPassiveIncome && building.type.dailyPassiveIncome > 0) {
+        const base = building.type.dailyPassiveIncome;
+        const occupancyScale = Math.max(
+          0,
+          building.getIncomeWithoutPassives() /
+            Math.max(1, calculateIncome(building.type, building.state.level))
+        );
+        return acc + base * occupancyScale;
+      }
+      return acc;
+    }, 0);
+
+    this.cachedPassiveIncomePerDay = perDay;
+    const total = Math.floor(perDay * Math.max(1, daysAdvanced));
+    this.lastDailyIncome = total;
+    if (total > 0) {
+      this.recordIncome(total);
+    }
+    return total;
   }
 
   public computeOngoingCosts(
@@ -89,6 +117,8 @@ export class EconomySystem {
     return {
       dailyMaintenance: this.cachedMaintenancePerDay,
       dailySalaries: this.cachedSalariesPerDay,
+      dailyPassiveIncome: this.cachedPassiveIncomePerDay,
+      lastDailyIncome: this.lastDailyIncome,
       lastMonthlyTax: this.lastMonthlyTax,
       monthIncome: this.monthIncome,
       monthExpenses: this.monthExpenses,

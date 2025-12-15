@@ -1,0 +1,7 @@
+{
+  "initialSize": 22,
+  "maxSize": 70,
+  "expansionStep": 8,
+  "baseCost": 650,
+  "costGrowth": 1.3
+}

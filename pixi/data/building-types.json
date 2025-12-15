@@ -15,7 +15,8 @@
     "baseIntervalMs": 2500,
     "width": 1,
     "height": 1,
-    "requiresRoadAccess": true
+    "requiresRoadAccess": true,
+    "dailyPassiveIncome": 24
   },
   {
     "id": "shop",
@@ -33,7 +34,8 @@
     "baseIntervalMs": 2000,
     "width": 2,
     "height": 1,
-    "requiresRoadAccess": true
+    "requiresRoadAccess": true,
+    "dailyPassiveIncome": 48
   },
   {
     "id": "factory",
@@ -51,7 +53,8 @@
     "baseIntervalMs": 1500,
     "width": 2,
     "height": 2,
-    "requiresRoadAccess": true
+    "requiresRoadAccess": true,
+    "dailyPassiveIncome": 96
   },
   {
     "id": "road",

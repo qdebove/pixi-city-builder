@@ -5,6 +5,7 @@ import { EventTicker } from '@/components/EventTicker';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { Game, GameUIState } from '@/pixi/Game';
+import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
 import React, {
@@ -57,12 +58,20 @@ const Home: React.FC = () => {
     economy: {
       dailyMaintenance: 0,
       dailySalaries: 0,
+      dailyPassiveIncome: 0,
+      lastDailyIncome: 0,
       lastMonthlyTax: 0,
       monthIncome: 0,
       monthExpenses: 0,
       projectedTax: 0,
     },
     districts: { zones: [] },
+    buildZone: {
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      nextCost: 0,
+      expansionsPurchased: 0,
+      maxSize: 0,
+    },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -96,6 +105,10 @@ const Home: React.FC = () => {
 
   const handleHireWorker = useCallback((workerId: string) => {
     gameRef.current?.hireWorker(workerId);
+  }, []);
+
+  const handleExpandZone = useCallback(() => {
+    gameRef.current?.expandBuildZone();
   }, []);
 
   useEffect(() => {
@@ -448,6 +461,14 @@ const Home: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="mt-3">
+          <BuildZoneIndicator
+            buildZone={gameState.buildZone}
+            money={gameState.money}
+            onExpand={handleExpandZone}
+          />
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
