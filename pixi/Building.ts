@@ -16,6 +16,7 @@ export class Building extends Container {
   public readonly widthCells: number;
   public readonly heightCells: number;
   public state: BuildingState;
+  public districtId?: string;
   private incomeProgressMs = 0;
 
   private readonly unlockedPassives: PassiveInstance[];
@@ -157,6 +158,11 @@ export class Building extends Container {
     }
 
     this.drawVisual();
+  }
+
+  public setDistrict(districtId: string | undefined) {
+    this.districtId = districtId;
+    this.state.districtId = districtId;
   }
 
   public setSelected(isSelected: boolean) {

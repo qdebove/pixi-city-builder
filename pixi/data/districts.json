@@ -1,0 +1,47 @@
+{
+  "themes": [
+    {
+      "id": "harbor",
+      "name": "Front de mer",
+      "bonuses": {
+        "commerce": 0.12,
+        "housing": 0.06
+      }
+    },
+    {
+      "id": "industrial",
+      "name": "Zone technique",
+      "bonuses": {
+        "industry": 0.15
+      }
+    },
+    {
+      "id": "civic",
+      "name": "Coeur civique",
+      "bonuses": {
+        "housing": 0.04,
+        "commerce": 0.04
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "district_a",
+      "themeId": "harbor",
+      "name": "Quai Nord",
+      "area": { "x": 6, "y": 6, "width": 12, "height": 10 }
+    },
+    {
+      "id": "district_b",
+      "themeId": "industrial",
+      "name": "Ateliers", 
+      "area": { "x": 20, "y": 8, "width": 12, "height": 10 }
+    },
+    {
+      "id": "district_c",
+      "themeId": "civic",
+      "name": "Esplanade centrale",
+      "area": { "x": 12, "y": 18, "width": 10, "height": 12 }
+    }
+  ]
+}

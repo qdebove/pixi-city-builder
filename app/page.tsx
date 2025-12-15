@@ -54,6 +54,15 @@ const Home: React.FC = () => {
     guardPresence: { roaming: 0, stationed: 0 },
     hiredWorkers: [],
     hiredByJob: {},
+    economy: {
+      dailyMaintenance: 0,
+      dailySalaries: 0,
+      lastMonthlyTax: 0,
+      monthIncome: 0,
+      monthExpenses: 0,
+      projectedTax: 0,
+    },
+    districts: { zones: [] },
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -589,6 +598,8 @@ const Home: React.FC = () => {
         hiredWorkers={gameState.hiredWorkers}
         hiredByJob={gameState.hiredByJob}
         onHireWorker={handleHireWorker}
+        economy={gameState.economy}
+        districts={gameState.districts}
       />
     </div>
   );

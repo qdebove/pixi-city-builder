@@ -16,12 +16,17 @@ export class BuildingManager {
 
   private draggingType: BuildingType | null = null;
   private ghost: Graphics | null = null;
+  private onBuildingPlaced?: (building: Building) => void;
 
   constructor(app: Application, world: Container) {
     this.app = app;
     this.world = world;
 
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
+  }
+
+  public setOnBuildingPlaced(callback: ((building: Building) => void) | undefined) {
+    this.onBuildingPlaced = callback;
   }
 
   private key(gx: number, gy: number) {
@@ -59,6 +64,10 @@ export class BuildingManager {
     const building = new Building(gridX, gridY, type);
     this.world.addChild(building);
     this.registerBuildingFootprint(building);
+
+    if (this.onBuildingPlaced) {
+      this.onBuildingPlaced(building);
+    }
 
     if (this.ghost) {
       this.setDragMode(this.draggingType);

@@ -18,17 +18,22 @@ import { ActiveEventSnapshot } from './EventSystem';
 import { TimeSnapshot, TimeSystem } from './TimeSystem';
 import { DebtSnapshot, DebtSystem } from './DebtSystem';
 import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
+import { ECONOMY_SETTINGS } from './data/economy-settings';
 import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
 import { ServiceFlash } from './ServiceFlash';
 import { WORKER_ROSTER } from './data/game-model';
 import { Worker } from '@/types/data-contract';
 import { computeWorkerCost } from './data/recruitment';
+import { EconomySnapshot, EconomySystem } from './EconomySystem';
+import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
 
 export interface SelectedBuildingComputed {
   incomePerTick: number;
   incomeWithEvents: number;
   intervalMs: number;
   eventMultiplier: number;
+  districtName?: string;
+  districtIncomeMultiplier?: number;
 }
 
 export interface GameUIState {
@@ -51,6 +56,8 @@ export interface GameUIState {
   guardPresence: { roaming: number; stationed: number };
   hiredWorkers: string[];
   hiredByJob: Record<string, number>;
+  economy: EconomySnapshot;
+  districts: DistrictSnapshot;
 }
 
 export class Game {
@@ -61,6 +68,8 @@ export class Game {
   private simulation: SimulationClock;
   private timeSystem: TimeSystem;
   private debtSystem: DebtSystem;
+  private economySystem: EconomySystem;
+  private districtSystem: DistrictSystem;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
@@ -97,6 +106,8 @@ export class Game {
     this.eventSystem = new EventSystem();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
     this.debtSystem = new DebtSystem(DEBT_SETTINGS);
+    this.economySystem = new EconomySystem(ECONOMY_SETTINGS, TIME_SETTINGS);
+    this.districtSystem = new DistrictSystem();
     this.securitySystem = new SecuritySystem();
     this.securitySnapshot = this.securitySystem.snapshot();
 
@@ -124,6 +135,10 @@ export class Game {
 
     this.worldView = new WorldView(this.app);
     this.buildingManager = new BuildingManager(this.app, this.worldView.world);
+    this.buildingManager.setOnBuildingPlaced((building) => {
+      const zone = this.districtSystem.getDistrictForBuilding(building);
+      building.setDistrict(zone?.id);
+    });
     this.peopleManager = new PeopleManager(
       this.app,
       this.worldView.world,
@@ -172,13 +187,30 @@ export class Game {
       for (let i = 0; i < timeAdvance.monthsAdvanced; i++) {
         const payment = this.debtSystem.processNewMonth();
         this.money -= payment;
+        this.economySystem.recordExpense(payment);
+
+        const tax = this.economySystem.processMonthEnd();
+        this.money -= tax;
       }
+    }
+
+    const upkeep = this.economySystem.computeOngoingCosts(
+      this.buildingManager.getBuildings(),
+      this.getHiredWorkerTemplates(),
+      ctx.deltaMs
+    );
+
+    if (upkeep > 0) {
+      this.money -= upkeep;
     }
 
     this.buildingManager.getBuildings().forEach((building) => {
       const skillSnapshot = building.type.isRoad
         ? null
         : this.skillEngine.computeBuildingSnapshot(building, ctx.tick);
+
+      const districtMultiplier = this.districtSystem.getIncomeMultiplier(building);
+      const districtZone = this.districtSystem.getDistrictForBuilding(building);
 
       if (skillSnapshot && !building.type.isRoad) {
         building.updateState({ productionIntervalMs: skillSnapshot.intervalMs });
@@ -190,7 +222,9 @@ export class Game {
         this.selectedBuilding &&
         building.state.instanceId === this.selectedBuilding.state.instanceId
       ) {
-        const baseIncome = skillSnapshot?.incomePerTick ?? building.getIncome();
+        const baseIncome =
+          (skillSnapshot?.incomePerTick ?? building.getIncome()) *
+          districtMultiplier;
         this.selectedBuildingComputed = {
           incomePerTick: baseIncome,
           incomeWithEvents: Math.floor(
@@ -198,6 +232,8 @@ export class Game {
           ),
           intervalMs: skillSnapshot?.intervalMs ?? building.getBaseIntervalMs(),
           eventMultiplier: eventModifiers.incomeMultiplier,
+          districtName: districtZone?.name,
+          districtIncomeMultiplier: districtMultiplier,
         };
       }
 
@@ -205,7 +241,8 @@ export class Game {
         this.harvestBuilding(
           building,
           skillSnapshot ?? undefined,
-          eventModifiers.incomeMultiplier
+          eventModifiers.incomeMultiplier,
+          districtMultiplier
         );
       }
     });
@@ -246,6 +283,11 @@ export class Game {
 
     if (eventModifiers.moneyDelta !== 0) {
       this.money += eventModifiers.moneyDelta;
+      if (eventModifiers.moneyDelta > 0) {
+        this.economySystem.recordIncome(eventModifiers.moneyDelta);
+      } else {
+        this.economySystem.recordExpense(-eventModifiers.moneyDelta);
+      }
     }
 
     if (ctx.nowMs - this.lastStatsUpdate > 250) {
@@ -262,6 +304,7 @@ export class Game {
     if (this.money < hiringCost) return false;
 
     this.money -= hiringCost;
+    this.economySystem.recordExpense(hiringCost);
     this.hiredWorkerIds.add(workerId);
     this.syncPeoplePool();
     this.emitState();
@@ -355,6 +398,7 @@ export class Game {
       const success = this.buildingManager.tryPlaceBuildingAt(globalPos, type);
       if (success) {
         this.money -= type.cost;
+        this.economySystem.recordExpense(type.cost);
         this.emitState();
       }
     }
@@ -363,13 +407,17 @@ export class Game {
   public harvestBuilding(
     building: Building,
     skillSnapshot?: BuildingSkillSnapshot,
-    incomeMultiplier: number = 1
+    incomeMultiplier: number = 1,
+    districtMultiplier: number = 1
   ) {
-    const baseIncome = skillSnapshot?.incomePerTick ?? building.getIncome();
+    const baseIncome =
+      (skillSnapshot?.incomePerTick ?? building.getIncome()) *
+      Math.max(0, districtMultiplier);
     const income = Math.floor(baseIncome * Math.max(0, incomeMultiplier));
     if (income <= 0) return;
 
     this.money += income;
+    this.economySystem.recordIncome(income);
     this.totalClicks++;
 
     const center = building.getCenterGlobalPosition();
@@ -428,6 +476,7 @@ export class Game {
     }
 
     if (spent > 0) {
+      this.economySystem.recordExpense(spent);
       this.emitState();
     }
 
@@ -496,6 +545,7 @@ export class Game {
 
     if (this.money >= cost && b.state.level < b.type.maxLevel) {
       this.money -= cost;
+      this.economySystem.recordExpense(cost);
 
       const nextLevel = b.state.level + 1;
       b.updateState({
@@ -552,6 +602,12 @@ export class Game {
     return { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole };
   }
 
+  private getHiredWorkerTemplates(): Worker[] {
+    return Array.from(this.hiredWorkerIds.values())
+      .map((id) => WORKER_ROSTER.find((w) => w.id === id))
+      .filter((w): w is Worker => Boolean(w));
+  }
+
   private emitState() {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
@@ -566,6 +622,11 @@ export class Game {
         return acc;
       },
       {} as Record<string, number>
+    );
+
+    const economy = this.economySystem.snapshot();
+    const districts = this.districtSystem.snapshot(
+      this.buildingManager.getBuildings()
     );
 
     this.onStateChange({
@@ -592,6 +653,8 @@ export class Game {
       guardPresence: this.guardPresence,
       hiredWorkers: Array.from(this.hiredWorkerIds.values()),
       hiredByJob,
+      economy,
+      districts,
     });
   }
 

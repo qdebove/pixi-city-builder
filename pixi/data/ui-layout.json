@@ -27,6 +27,12 @@
       "label": "Recrutement",
       "description": "Contrats et signaux opérationnels",
       "layout": "vertical"
+    },
+    {
+      "id": "economy",
+      "label": "Économie",
+      "description": "Charges, taxes et districts thématiques",
+      "layout": "vertical"
     }
   ],
   "skillPanels": [

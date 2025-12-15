@@ -56,6 +56,8 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const incomeWithEvents =
     computed?.incomeWithEvents ??
     Math.floor(currentTickIncome * Math.max(0, eventMultiplier));
+  const districtName = computed?.districtName ?? 'Hors district';
+  const districtMultiplier = computed?.districtIncomeMultiplier ?? 1;
 
   const formatSignedAmount = (amount: number) =>
     `${amount >= 0 ? '+' : '-'}${Math.abs(amount)}€ / tick`;
@@ -97,6 +99,9 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                 Adjacence route obligatoire
               </span>
             )}
+            <span className="rounded-full bg-sky-900/40 px-2 py-1 text-[11px] font-semibold text-sky-100 border border-sky-700/60">
+              District : {districtName} ({(districtMultiplier * 100).toFixed(0)}% revenus)
+            </span>
           </div>
         </div>
       </div>

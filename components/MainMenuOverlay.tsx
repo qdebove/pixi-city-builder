@@ -8,6 +8,9 @@ import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 import { SecurityPanel } from './SecurityPanel';
 import { SecuritySnapshot } from '@/pixi/SecuritySystem';
 import { MENU_LAYOUT, MenuTabConfig } from '@/pixi/data/ui-layout';
+import { EconomySnapshot } from '@/pixi/EconomySystem';
+import { DistrictSnapshot } from '@/pixi/DistrictSystem';
+import { EconomyPanel } from './EconomyPanel';
 
 const GUARD_WORKER_ID = 'worker_salma';
 
@@ -42,6 +45,12 @@ const FALLBACK_TABS: MenuTabConfig[] = [
     description: 'Signer des contrats de travailleuses selon la progression, la réputation et les besoins actuels.',
     layout: 'vertical',
   },
+  {
+    id: 'economy',
+    label: 'Économie',
+    description: 'Vue consolidée des flux financiers et bonus de districts.',
+    layout: 'vertical',
+  },
 ];
 
 export type MenuTab = MenuTabConfig['id'];
@@ -61,6 +70,8 @@ interface MainMenuOverlayProps {
   hiredWorkers: string[];
   hiredByJob: Record<string, number>;
   onHireWorker: (workerId: string) => void;
+  economy: EconomySnapshot;
+  districts: DistrictSnapshot;
 }
 
 export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
@@ -78,6 +89,8 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
   hiredWorkers,
   hiredByJob,
   onHireWorker,
+  economy,
+  districts,
 }) => {
   const tabs = useMemo<MenuTabConfig[]>(() => {
     if (MENU_LAYOUT.menuTabs && MENU_LAYOUT.menuTabs.length > 0) {
@@ -178,6 +191,9 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
                 money={money}
                 onHireGuard={() => onHireWorker(GUARD_WORKER_ID)}
               />
+            )}
+            {activeTabId === 'economy' && (
+              <EconomyPanel economy={economy} districts={districts} />
             )}
           </div>
         </div>

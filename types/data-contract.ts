@@ -451,6 +451,9 @@ export interface Worker {
   /** runtime only, optional */
   skillRuntime?: SkillRuntimeState;
 
+  /** Salaire journalier brut attendu (ajuste l'économie multi-niveaux). */
+  salaryPerDay?: number;
+
   /** optional: for movement/needs simulation */
   needs?: WorkerNeeds;
 }
