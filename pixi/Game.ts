@@ -201,11 +201,17 @@ export class Game {
       bounds.width * CELL_SIZE,
       bounds.height * CELL_SIZE
     )
-      .fill({ color: 0x0ea5e9, alpha: 0.08 })
-      .stroke({ width: 3, color: 0x38bdf8, alpha: 0.5 });
+      .fill({ color: 0x0ea5e9, alpha: 0.14 })
+      .stroke({ width: 4, color: 0x38bdf8, alpha: 0.8 });
 
     this.buildZoneOverlay = g;
     this.worldView.world.addChild(g);
+    this.worldView.setPanBounds({
+      x: bounds.x * CELL_SIZE,
+      y: bounds.y * CELL_SIZE,
+      width: bounds.width * CELL_SIZE,
+      height: bounds.height * CELL_SIZE,
+    });
   }
 
   private drawDistricts() {

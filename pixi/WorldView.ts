@@ -26,6 +26,9 @@ export class WorldView {
   private readonly MIN_SCALE = 0.15;
   private readonly MAX_SCALE = 4.0;
 
+  private panBounds: { x: number; y: number; width: number; height: number } | null =
+    null;
+
   constructor(app: Application) {
     this.app = app;
     this.world = new Container();
@@ -46,19 +49,32 @@ export class WorldView {
 
     for (let i = 0; i <= GRID_SIZE; i++) {
       const pos = i * CELL_SIZE;
+      const isMajorLine = i % 5 === 0;
+      const stroke = {
+        width: isMajorLine ? 1.5 : 1,
+        color: isMajorLine ? 0x94a3b8 : 0x475569,
+        alpha: isMajorLine ? 0.45 : 0.28,
+      } as const;
       g.moveTo(pos, 0)
         .lineTo(pos, GRID_SIZE * CELL_SIZE)
-        .stroke({ width: 1, color: 0x334155 });
+        .stroke(stroke);
       g.moveTo(0, pos)
         .lineTo(GRID_SIZE * CELL_SIZE, pos)
-        .stroke({ width: 1, color: 0x334155 });
+        .stroke(stroke);
     }
     this.world.addChild(g);
   }
 
   private centerWorld() {
-    this.world.x = -(GRID_SIZE * CELL_SIZE) / 2 + this.app.screen.width / 2;
-    this.world.y = -(GRID_SIZE * CELL_SIZE) / 2 + this.app.screen.height / 2;
+    const bounds =
+      this.panBounds ??
+      ({
+        x: 0,
+        y: 0,
+        width: GRID_SIZE * CELL_SIZE,
+        height: GRID_SIZE * CELL_SIZE,
+      } as const);
+    this.centerOnBounds(bounds);
   }
 
   private setupControls() {
@@ -97,6 +113,7 @@ export class WorldView {
       const dy = e.global.y - this.panStart.y;
       this.world.x = this.worldStart.x + dx;
       this.world.y = this.worldStart.y + dy;
+      this.clampWorldPosition();
     }
   };
 
@@ -126,6 +143,7 @@ export class WorldView {
 
     this.world.x = mousePos.x - worldPosBefore.x * newScale;
     this.world.y = mousePos.y - worldPosBefore.y * newScale;
+    this.clampWorldPosition();
   };
 
   private onKeyDown = (event: KeyboardEvent) => {
@@ -181,11 +199,12 @@ export class WorldView {
     if (dx === 0 && dy === 0) return;
 
     const deltaSeconds = ticker.deltaMS / 1000;
-    const scaleCompensation = Math.max(this.world.scale.x, 0.001);
-    const step = (this.keyboardPanSpeed / scaleCompensation) * deltaSeconds;
+    const zoomFactor = Math.max(this.world.scale.x, this.MIN_SCALE);
+    const step = (this.keyboardPanSpeed / zoomFactor) * deltaSeconds;
 
     this.world.x += dx * step;
     this.world.y += dy * step;
+    this.clampWorldPosition();
   };
 
   private preventContextMenu = (e: Event) => {
@@ -194,6 +213,53 @@ export class WorldView {
 
   public getScale(): number {
     return this.world.scale.x;
+  }
+
+  public setPanBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) {
+    this.panBounds = bounds;
+    this.centerOnBounds(bounds);
+    this.clampWorldPosition();
+  }
+
+  private centerOnBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) {
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    this.world.x = this.app.screen.width / 2 - centerX * this.world.scale.x;
+    this.world.y = this.app.screen.height / 2 - centerY * this.world.scale.y;
+  }
+
+  private clampWorldPosition() {
+    if (!this.panBounds) return;
+
+    const scale = this.world.scale.x;
+    const bounds = this.panBounds;
+
+    const minX = this.app.screen.width - (bounds.x + bounds.width) * scale;
+    const maxX = -bounds.x * scale;
+    const minY = this.app.screen.height - (bounds.y + bounds.height) * scale;
+    const maxY = -bounds.y * scale;
+
+    if (minX > maxX) {
+      this.world.x = (minX + maxX) / 2;
+    } else {
+      this.world.x = Math.min(Math.max(this.world.x, minX), maxX);
+    }
+
+    if (minY > maxY) {
+      this.world.y = (minY + maxY) / 2;
+    } else {
+      this.world.y = Math.min(Math.max(this.world.y, minY), maxY);
+    }
   }
 
   public destroy() {
