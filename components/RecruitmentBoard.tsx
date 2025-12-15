@@ -7,6 +7,7 @@ import { InfoImageSlot } from './InfoImageSlot';
 import { SpriteResolver } from '@/pixi/assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from '@/pixi/assets/registry';
 import { computeWorkerCost } from '@/pixi/data/recruitment';
+import { MENU_LAYOUT, RecruitmentPanelConfig } from '@/pixi/data/ui-layout';
 
 interface RecruitmentBoardProps {
   reputation: ReputationSnapshot;
@@ -52,9 +53,37 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
   hiredWorkers,
   onHireWorker,
 }) => {
-  const [activeTab, setActiveTab] = useState<'candidates' | 'signals'>(
-    'candidates'
+  const panels = useMemo<RecruitmentPanelConfig[]>(() => {
+    if (MENU_LAYOUT.recruitmentPanels && MENU_LAYOUT.recruitmentPanels.length > 0) {
+      return MENU_LAYOUT.recruitmentPanels;
+    }
+    return [
+      {
+        id: 'candidates',
+        title: 'Candidatures disponibles',
+        description: 'Dossiers disponibles',
+        content: 'candidates',
+      },
+      {
+        id: 'signals',
+        title: 'Signaux',
+        description: 'Finances et réputation',
+        content: 'signals',
+      },
+    ];
+  }, []);
+
+  const [activePanelId, setActivePanelId] = useState<string>(() =>
+    panels[0]?.id ?? 'candidates'
   );
+
+  const safeActivePanelId = panels.some((panel) => panel.id === activePanelId)
+    ? activePanelId
+    : panels[0]?.id ?? 'candidates';
+
+  const activePanel =
+    panels.find((panel) => panel.id === safeActivePanelId) ?? panels[0];
+  const activeContent = activePanel?.content ?? 'candidates';
   const portraitResolver = useMemo(
     () => new SpriteResolver(BASE_ASSET_REGISTRY),
     []
@@ -128,182 +157,179 @@ export const RecruitmentBoard: React.FC<RecruitmentBoardProps> = ({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-700/80 bg-slate-800/60 p-2">
-        {(
-          [
-            { id: 'candidates', label: 'Candidatures', hint: 'Dossiers disponibles' },
-            { id: 'signals', label: 'Signaux', hint: 'Finances et réputation' },
-          ] as const
-        ).map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                isActive
-                  ? 'bg-sky-900/40 text-sky-100 border border-sky-500/70'
-                  : 'text-slate-200 border border-slate-700 hover:border-slate-500'
-              }`}
-            >
-              <div className="flex flex-col text-left leading-tight">
-                <span>{tab.label}</span>
-                <span className="text-[11px] font-normal text-slate-300">{tab.hint}</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {activeTab === 'signals' && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
-            <p className="text-[11px] uppercase text-slate-400">Budget dédié</p>
-            <p className="text-sm font-semibold text-amber-200">{formatCurrency(money)}</p>
-            <p className="text-[12px] text-slate-400">Capital disponible pour signer les contrats.</p>
-          </div>
-          <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
-            <p className="text-[11px] uppercase text-slate-400">Réputation</p>
-            <p className="text-sm text-slate-200">
-              Locale {reputation.local.toFixed(1)} • Premium {reputation.premium.toFixed(1)} • Régulation {reputation.regulatoryPressure.toFixed(1)}
-            </p>
-            <p className="text-[12px] text-slate-400">Impacte les attentes et primes d&apos;arrivée.</p>
-          </div>
-          <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
-            <p className="text-[11px] uppercase text-slate-400">Besoins opérationnels</p>
-            <p className="text-sm text-slate-200">{staffingHint}</p>
-            <p className="text-[12px] text-slate-400">Ajuste les recommandations de profils.</p>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'candidates' && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {candidates.map((candidate) => {
-            const { worker } = candidate;
-            const job = JOB_DEFINITIONS[worker.jobs.primary];
-            const readinessPercent = Math.round(clamp(candidate.readiness, 0, 1) * 100);
-            const portraitUri = portraitResolver.resolve({
-              kind: 'portrait',
-              target: 'worker',
-              entity: { id: worker.id, tags: 'worker' },
-              variant: 'idle',
-              seedKey: worker.id,
-            })?.uri;
-            const isLocked = candidate.readiness < 1;
-            const isHired = hiredWorkers.includes(worker.id);
-            const canAfford = money >= candidate.baseCost;
-            const accentColor =
-              worker.jobs.primary === 'guard' ? '#f59e0b' : '#38bdf8';
-
+      <div className="grid gap-3 md:grid-cols-[240px,1fr]">
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-700/80 bg-slate-800/60 p-2">
+          {panels.map((panel) => {
+            const isActive = panel.id === activePanelId;
             return (
-              <article
-                key={worker.id}
-                className="flex flex-col gap-3 rounded-lg border border-slate-700 bg-slate-800/60 p-3 shadow-lg"
+              <button
+                key={panel.id}
+                onClick={() => setActivePanelId(panel.id)}
+                className={`flex flex-col items-start rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-sky-900/40 text-sky-100 border border-sky-500/70'
+                    : 'text-slate-200 border border-slate-700 hover:border-slate-500'
+                }`}
               >
-                <header className="flex items-start gap-3">
-                  <InfoImageSlot
-                    label={worker.identity?.firstName ?? worker.id}
-                    imageUrl={portraitUri}
-                    accentColor={accentColor}
-                    locked={isLocked}
-                    lockReason={
-                      isLocked
-                        ? `Prête à ${readinessPercent}%`
-                        : undefined
-                    }
-                  />
-                  <div className="flex flex-1 items-start justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
-                      <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
-                      <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
-                      {worker.jobs.primary === 'guard' && (
-                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-900/50 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                          • Sécurité dédiée
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                        isHired
-                          ? 'bg-emerald-700/70 text-emerald-50'
-                          : candidate.status === 'Disponible'
-                          ? 'bg-emerald-700/60 text-emerald-50'
-                          : candidate.status === 'En pré-contrat'
-                          ? 'bg-amber-700/50 text-amber-50'
-                          : 'bg-slate-700 text-slate-200'
-                      }`}
-                    >
-                      {isHired ? 'Recrutée' : candidate.status}
-                    </span>
-                  </div>
-                </header>
-
-                <div className="flex items-center gap-3">
-                  <div className="h-2 flex-1 rounded bg-slate-800">
-                    <div
-                      className="h-full rounded bg-sky-400 transition-all"
-                      style={{ width: `${readinessPercent}%` }}
-                    />
-                  </div>
-                  <span className="text-[12px] text-slate-300">{readinessPercent}%</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
-                  <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-                    <p className="text-[11px] uppercase text-slate-400">Coût de base</p>
-                    <p className="font-mono text-amber-200">{formatCurrency(candidate.baseCost)}</p>
-                  </div>
-                  <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-                    <p className="text-[11px] uppercase text-slate-400">Porte d&apos;entrée</p>
-                    <p className="font-mono">{candidate.gate} clics</p>
-                  </div>
-                  <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-                    <p className="text-[11px] uppercase text-slate-400">Signal premium</p>
-                    <p className="font-mono">{candidate.premiumExpectation.toFixed(0)}</p>
-                  </div>
-                  <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
-                    <p className="text-[11px] uppercase text-slate-400">Loyauté</p>
-                    <p className="font-mono">{candidate.loyaltySignal}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[12px] text-slate-300">
-                    Signature :{' '}
-                    <span className="font-semibold text-amber-200">
-                      {formatCurrency(candidate.baseCost)}
-                    </span>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => onHireWorker(worker.id)}
-                    disabled={isLocked || isHired || !canAfford}
-                    className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
-                      isLocked
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                        : isHired
-                        ? 'bg-emerald-700 text-emerald-50'
-                        : canAfford
-                        ? 'bg-sky-700 text-white hover:bg-sky-600'
-                        : 'bg-slate-800 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    {isHired
-                      ? "Déjà dans l'équipe"
-                      : isLocked
-                      ? 'Pas encore disponible'
-                      : canAfford
-                      ? 'Recruter'
-                      : 'Budget insuffisant'}
-                  </button>
-                </div>
-              </article>
+                <span>{panel.title}</span>
+                <span className="text-[11px] font-normal text-slate-300">{panel.description}</span>
+              </button>
             );
           })}
         </div>
-      )}
+
+        <div className="space-y-3">
+          {activeContent === 'signals' && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <p className="text-[11px] uppercase text-slate-400">Budget dédié</p>
+                <p className="text-sm font-semibold text-amber-200">{formatCurrency(money)}</p>
+                <p className="text-[12px] text-slate-400">Capital disponible pour signer les contrats.</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <p className="text-[11px] uppercase text-slate-400">Réputation</p>
+                <p className="text-sm text-slate-200">
+                  Locale {reputation.local.toFixed(1)} • Premium {reputation.premium.toFixed(1)} • Régulation {reputation.regulatoryPressure.toFixed(1)}
+                </p>
+                <p className="text-[12px] text-slate-400">Impacte les attentes et primes d&apos;arrivée.</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3">
+                <p className="text-[11px] uppercase text-slate-400">Besoins opérationnels</p>
+                <p className="text-sm text-slate-200">{staffingHint}</p>
+                <p className="text-[12px] text-slate-400">Ajuste les recommandations de profils.</p>
+              </div>
+            </div>
+          )}
+
+          {activeContent === 'candidates' && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {candidates.map((candidate) => {
+                const { worker } = candidate;
+                const job = JOB_DEFINITIONS[worker.jobs.primary];
+                const readinessPercent = Math.round(clamp(candidate.readiness, 0, 1) * 100);
+                const portraitUri = portraitResolver.resolve({
+                  kind: 'portrait',
+                  target: 'worker',
+                  entity: { id: worker.id, tags: 'worker' },
+                  variant: 'idle',
+                  seedKey: worker.id,
+                })?.uri;
+                const isLocked = candidate.readiness < 1;
+                const isHired = hiredWorkers.includes(worker.id);
+                const canAfford = money >= candidate.baseCost;
+                const accentColor =
+                  worker.jobs.primary === 'guard' ? '#f59e0b' : '#38bdf8';
+
+                return (
+                  <article
+                    key={worker.id}
+                    className="flex flex-col gap-3 rounded-lg border border-slate-700 bg-slate-800/60 p-3 shadow-lg"
+                  >
+                    <header className="flex items-start gap-3">
+                      <InfoImageSlot
+                        label={worker.identity?.firstName ?? worker.id}
+                        imageUrl={portraitUri}
+                        accentColor={accentColor}
+                        locked={isLocked}
+                        lockReason={
+                          isLocked
+                            ? `Prête à ${readinessPercent}%`
+                            : undefined
+                        }
+                      />
+                      <div className="flex flex-1 items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] uppercase text-slate-400">{job?.nameKey ?? 'Poste polyvalent'}</p>
+                          <p className="text-sm font-semibold text-white">{worker.identity?.firstName} {worker.identity?.lastName}</p>
+                          <p className="text-[12px] text-slate-300">{worker.identity?.title ?? 'Profil adaptable'}</p>
+                          {worker.jobs.primary === 'guard' && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-900/50 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                              • Sécurité dédiée
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                            isHired
+                              ? 'bg-emerald-700/70 text-emerald-50'
+                              : candidate.status === 'Disponible'
+                              ? 'bg-emerald-700/60 text-emerald-50'
+                              : candidate.status === 'En pré-contrat'
+                              ? 'bg-amber-700/50 text-amber-50'
+                              : 'bg-slate-700 text-slate-200'
+                          }`}
+                        >
+                          {isHired ? 'Recrutée' : candidate.status}
+                        </span>
+                      </div>
+                    </header>
+
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 flex-1 rounded bg-slate-800">
+                        <div
+                          className="h-full rounded bg-sky-400 transition-all"
+                          style={{ width: `${readinessPercent}%` }}
+                        />
+                      </div>
+                      <span className="text-[12px] text-slate-300">{readinessPercent}%</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
+                      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+                        <p className="text-[11px] uppercase text-slate-400">Coût de base</p>
+                        <p className="font-mono text-amber-200">{formatCurrency(candidate.baseCost)}</p>
+                      </div>
+                      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+                        <p className="text-[11px] uppercase text-slate-400">Porte d&apos;entrée</p>
+                        <p className="font-mono">{candidate.gate} clics</p>
+                      </div>
+                      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+                        <p className="text-[11px] uppercase text-slate-400">Signal premium</p>
+                        <p className="font-mono">{candidate.premiumExpectation.toFixed(0)}</p>
+                      </div>
+                      <div className="rounded border border-slate-700/60 bg-slate-800/80 p-2">
+                        <p className="text-[11px] uppercase text-slate-400">Loyauté</p>
+                        <p className="font-mono">{candidate.loyaltySignal}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[12px] text-slate-300">
+                        Signature :{' '}
+                        <span className="font-semibold text-amber-200">
+                          {formatCurrency(candidate.baseCost)}
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onHireWorker(worker.id)}
+                        disabled={isLocked || isHired || !canAfford}
+                        className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                          isLocked
+                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            : isHired
+                            ? 'bg-emerald-700 text-emerald-50'
+                            : canAfford
+                            ? 'bg-sky-700 text-white hover:bg-sky-600'
+                            : 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {isHired
+                          ? "Déjà dans l'équipe"
+                          : isLocked
+                          ? 'Pas encore disponible'
+                          : canAfford
+                          ? 'Recruter'
+                          : 'Budget insuffisant'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

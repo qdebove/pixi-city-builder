@@ -269,6 +269,9 @@ export class Game {
 
     if (e.button === 2) {
       this.setDragMode(null);
+      this.deselectBuilding();
+      this.deselectPerson();
+      this.stopRoadPainting();
       return;
     }
 

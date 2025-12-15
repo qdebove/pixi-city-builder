@@ -268,6 +268,6 @@ export class BuildingManager {
     );
 
     this.ghost.tint =
-      isOccupied || outOfBounds || !hasRoadAccess ? 0xff0000 : 0xffffff;
+      isOccupied || outOfBounds || !hasRoadAccess ? 0xef4444 : 0x22c55e;
   }
 }
