@@ -12,56 +12,103 @@ Le cœur du jeu repose sur :
 - l’optimisation économique à long terme,
 - la gestion du personnel et de leurs compétences,
 - une **forte composante visuelle personnalisable** (sprites, icônes, effets), indépendante du moteur,
-- une **pression économique long terme** (temps qui passe, échéances, dette à rembourser).
+- une **pression économique long terme** (temps qui passe, échéances, dette à rembourser),
+- une **carte procédurale** (taille initiale limitée) avec **districts de spécialisation** visibles.
 
 Aucun contenu explicite n’est représenté :  
 le plaisir de jeu provient **exclusivement des systèmes**, des décisions stratégiques et des interactions entre mécaniques.
 
 ### Objectif du joueur
 
+- Démarrer sur une carte générée (taille initiale définie) avec plusieurs **districts** aléatoires
+- Construire uniquement dans la **zone débloquée / générée**
 - Attirer des visiteurs via les routes
 - Les faire rester le plus longtemps possible
-- Maximiser les revenus
+- Maximiser les revenus tout en contrôlant les coûts
 - Maintenir un équilibre entre :
   - satisfaction,
   - réputation,
+  - sécurité,
   - pression réglementaire abstraite,
   - durabilité économique
-- Survivre et croître sous des **échéances** (dette mensuelle croissante), sans “game over” brutal.
+- Survivre et croître sous des **échéances** (dette mensuelle croissante), sans “game over” brutal
 
-Il n’existe pas de *game over* brutal :  
+Il n’existe pas de _game over_ brutal :  
 le jeu privilégie les **échecs progressifs récupérables** (ville vidée, mauvaise réputation, saturation, dette difficile, etc.).
 
 ---
 
 ## 2️⃣ Boucle de gameplay principale (Core Loop)
 
-1. Construire routes et bâtiments
-2. Les visiteurs apparaissent via les routes
-3. Les personnages (visiteurs & personnel) se déplacent **physiquement sur la carte**, de manière **strictement orthogonale** (jamais en diagonale)
-4. Ils consomment des services ou travaillent dans les bâtiments
-5. Les bâtiments génèrent des **revenus passifs** (aucune mécanique de “clicker” manuel)
-6. Satisfaction, réputation et sécurité influencent :
+1. Générer une carte initiale (taille limitée) avec **districts de spécialisation** (taille et placement aléatoires, bien visibles)
+2. Construire routes et bâtiments **uniquement** dans la zone autorisée
+3. Les visiteurs apparaissent via les routes
+4. Les personnages (visiteurs & personnel) se déplacent **physiquement sur la carte**, de manière **strictement orthogonale** (jamais en diagonale)
+5. Ils consomment des services ou travaillent dans les bâtiments
+6. Le jeu combine **revenus** et **coûts** à plusieurs échelles :
+   - ponctuels (ex : une personne consomme)
+   - journaliers (ex : revenu de base, certains coûts)
+   - mensuels (ex : entretien bâtiments, salaires, dette)
+7. Satisfaction, réputation et sécurité influencent :
    - la durée de séjour,
    - les retours,
    - le type de visiteurs qui arrivent,
    - certains déblocages / restrictions
-7. Les revenus permettent :
+8. Les revenus permettent :
    - d’améliorer les bâtiments,
    - de spécialiser des quartiers,
-   - d’étendre la ville,
+   - d’étendre la ville (achat de tiles/zone),
    - de recruter et former du personnel
-8. Le temps avance (jour/mois/heure locale), et chaque mois il faut **rembourser une dette** qui **grossit**.
+9. Le temps avance (jour/mois/heure locale), et chaque mois il faut **rembourser une dette** qui **grossit**.
 
-👉 Le joueur optimise **des flux visibles et la rétention**, sous **contraintes de temps** et d’objectifs financiers.
+👉 Le joueur optimise **des flux visibles et la rétention**, sous **contraintes de temps** et d’objectifs financiers multi-échelles.
 
 ---
 
-## 3️⃣ Types de bâtiments (abstraits)
+## 3️⃣ Carte & districts (nouveau pilier)
+
+### Carte procédurale
+
+- Au lancement, générer une **carte initiale** de taille définie (ex : NxN) :
+  - extensible plus tard via **achat/déblocage** de nouvelles zones
+- On **ne peut construire** que dans la zone initialement générée / débloquée.
+
+### Districts de spécialisation
+
+- Générer des **districts** :
+  - nombre aléatoire (dans une fourchette),
+  - taille aléatoire,
+  - position aléatoire,
+  - **bien visibles** (couleur/overlay/contour clair).
+- Les districts influencent :
+  - bonus/malus économiques,
+  - déblocages de bâtiments,
+  - synergies,
+  - réputation/sécurité,
+  - événements.
+- Les districts sont **data-driven** (règles, tags, effets).
+
+---
+
+## 4️⃣ Types de bâtiments (abstraits)
 
 > Tous les bâtiments sont destinés à devenir **data-driven** (config JSON) et peuvent avoir des **tailles différentes**.
 
+### Économie des bâtiments (règle globale)
+
+Les bâtiments ont des coûts et gains potentiellement à plusieurs temporalités :
+
+- **Coût de construction** (ponctuel)
+- **Coût d’entretien** (mensuel)
+- **Coûts de personnel** (mensuels)
+- **Revenus journaliers** (ex : revenu passif par jour)
+- **Revenus ponctuels** (ex : consommation par visiteur)
+- Éventuellement **coûts ponctuels** (événement, réparation, etc.)
+
+---
+
 ### A. Hébergements
+
 **Rôle** : augmenter la durée de séjour et la valeur de chaque visiteur.
 
 Exemples :
@@ -75,481 +122,216 @@ Paramètres :
 
 - Capacité
 - Confort
-- Prix par tick / par séjour
-- Exigences de services annexes (restaurants, divertissement...)
+- Prix par tick (jour / séjour)
+- Exigences de services annexes
 
 ---
 
 ### B. Services premium (abstraits)
-**Rôle** : générer de la satisfaction élevée + des dépenses importantes.
 
-Exemples :
-
-- Salons privés
-- Clubs
-- Espaces VIP
-- Services personnalisés
+**Rôle** : générer satisfaction élevée + dépenses importantes (ponctuelles).
 
 Paramètres :
 
 - Accès conditionnel (invitation, réputation, budget)
 - Temps d’attente
-- Coût
-- Impact sur la réputation (locale / premium)
+- Prix par visite / session
+- Impact sur réputation
 
 ---
 
 ### C. Restaurants & bars
-**Rôle** : répondre aux besoins récurrents des visiteurs & du personnel.
+
+**Rôle** : besoins récurrents, synergies avec hôtels & divertissements.
 
 Paramètres :
 
 - Qualité
 - Temps de service
 - Capacité
-- Synergies avec hôtels, casinos, zones de nuit
+- Prix par consommation
 
 ---
 
 ### D. Casinos & divertissement
-**Rôle** : générer des pics de revenus + un “attachement” abstrait.
+
+**Rôle** : pics de revenus + attachement abstrait.
 
 Mécaniques :
 
 - Variance des gains
-- Effets sur la satisfaction et la rétention
-- Risque de saturation / surfréquentation
+- Saturation
+- Impact sur rétention
 
 ---
 
 ### E. Bâtiments réservés au personnel
 
-- **Logements du personnel** : dortoirs, appartements, résidences premium  
-  → impact sur repos, moral, fidélité
-- **Infrastructures de soutien** : infirmerie, cantine, salle de repos  
-  → gestion de la fatigue, santé, moral
-- **Centres de formation** :  
-  → XP accélérée, déblocage de spécialisations, re-spécialisation coûteuse
+- Logements (repos, moral, fidélité)
+- Soutien (infirmerie, cantine, repos)
+- Formation (XP accélérée, re-spécialisation coûteuse)
 
 ---
 
 ### F. Sécurité (à intégrer)
 
 - Score global de **sécurité / délinquance**
-- Possibilité de recruter des **gardes** (personnel) qui **patrouillent** pour influencer sécurité, flux, événements et réputation.
+- Possibilité de recruter des **gardes** (personnel) qui patrouillent
 
 ---
 
-## 4️⃣ Les visiteurs (système central)
+## 5️⃣ Visiteurs (système central)
 
 Chaque visiteur est une **entité autonome** avec :
 
-### Attributs possibles
-
-- Budget
-- Tolérance à l’attente
-- Préférences :
-  - luxe
-  - discrétion
-  - variété
-- Fatigue
-- Sensibilité au prix
-- Sensibilité à la réputation
-- Durée maximale de séjour
-
-### États
-
-- Arrivée
-- Exploration (wandering)
-- Consommation (consuming)
-- Repos (resting)
-- Attente (waiting)
-- Départ (leaving)
+- Budget, patience, préférences (luxe/discrétion/variété), fatigue
+- Sensibilité au prix, à la réputation, à la sécurité
+- États : arriving → wandering → consuming/resting/waiting → leaving
 
 Les visiteurs :
 
 - circulent via les routes,
-- prennent des décisions en fonction de leurs stats, de la ville et du personnel,
-- peuvent devenir réguliers / premium via la satisfaction et les compétences du staff.
-
-👉 Le joueur gère une **population dynamique**, pas des pions passifs.
+- consomment des services,
+- génèrent du revenu ponctuel + influencent la satisfaction.
 
 ---
 
-## 5️⃣ Personnel & progression RPG
+## 6️⃣ Personnel & progression RPG
 
-### Nouvelle boucle secondaire
+### Boucle secondaire
 
-- Recruter du personnel
-- Assigner le personnel à des bâtiments
-- Améliorer les performances des bâtiments
-- Accumuler expérience & niveaux
-- Débloquer compétences, passifs et spécialisations
+- Recruter → Assigner → Optimiser → XP → Débloquer passifs/skills
 
-👉 Le city builder devient aussi un **jeu de gestion humaine et de progression RPG légère**.
+### Travailleurs
 
----
+- Niveau/XP, ressources (endurance/santé/moral), stats (efficacité/polyvalence/stress/loyauté), traits
+- Métiers : 1 principal + 0–2 secondaires
+- Besoins : déplacements logement/travail/soutien
 
-### Travailleurs (structure abstraite)
+### Skills & procs
 
-Chaque travailleur possède :
+- Passifs permanents + procs conditionnels (trigger/conditions/chance/cooldown/cost)
+- Pré-requis argent + réputation (réputation négative incluse)
+- Affichage visuel (icônes / VFX)
 
-- Niveau & expérience (XP)
-- Ressources :
-  - endurance
-  - santé
-  - moral
-- Stats :
-  - efficacité
-  - polyvalence
-  - résistance au stress
-  - loyauté
-- Traits individuels (bonus/malus)
-- Métiers :
-  - 1 métier principal
-  - 0–2 métiers secondaires (moins efficaces)
-- Besoins :
-  - fatigue / stress / faim / repos
-  - circulation entre logement / travail / soutien
+### Progression des visiteurs
+
+- Pas d’arbre de skill
+- Barre d’XP qui fait évoluer leurs caractéristiques
 
 ---
 
-### Métiers (exemples abstraits)
+## 7️⃣ Routes & flux
 
-- Accueil / service client
-- Animation
-- Gestion VIP
-- Cuisine / bar
-- Logistique / entretien
-- Sécurité (gardes, patrouilles)
-- Administration
-
-Efficacité :
-
-- 100 % dans le métier principal
-- 50–70 % dans les métiers secondaires
-- Malus si affecté à un poste hors compétence
+- Routes = entrée + circulation visiteurs/personnel
+- Pathfinding strictement orthogonal
+- UX : construction routes “peinture” (drag)
+- Districts + topologie route influencent le flux et la frustration
 
 ---
 
-### Arbres de compétences & procs
+## 8️⃣ Temps, économie multi-échelles & dette
 
-Chaque métier dispose d’un **arbre de compétences** :
-
-- Nœuds **permanents** (passifs) : bonus constants
-- Nœuds **conditionnels** (procs) : effets déclenchés par événements
-- Choix de branches et spécialisations, parfois irréversibles
-
-Les compétences peuvent :
-
-- avoir des **conditions** d’activation (statistiques, état, contexte),
-- une **chance** de déclenchement,
-- un **cooldown**,
-- un **coût** (endurance, moral, argent, etc.),
-- des **effets visuels** associés (icône, VFX discret),
-- des **pré-requis** en argent ET en **réputation** (y compris réputation négative).
-
-### Progression des “personnages” (visiteurs)
-
-Les personnages non-staff **n’ont pas d’arbre de compétence** :
-- ils ont une **barre d’expérience**,
-- qui fait évoluer leurs caractéristiques (ex : vitesse, patience, budget, préférences…).
+- Temps logique : heure locale / jour / mois
+- Déclencheurs :
+  - journaliers (revenus/certains coûts)
+  - mensuels (entretien, salaires, dette)
+  - ponctuels (consommation, événements)
+- Dette :
+  - remboursement mensuel obligatoire
+  - dette qui grossit selon une formule data-driven
+  - conséquences en cas de non-paiement : pénalités progressives (pas de game over brutal)
 
 ---
 
-## 6️⃣ Routes & flux
-
-- Les routes sont les **points d’entrée et de circulation** des visiteurs et du personnel.
-- Le pathfinding est **strictement orthogonal** (aucune diagonale).
-- La qualité de la topologie des routes influence :
-  - le volume de visiteurs,
-  - le type de visiteurs,
-  - la frustration (goulots d’étranglement, détours).
-
-Types abstraits de routes :
-
-- **Routes publiques** : volume élevé, visiteurs plus “standard”
-- **Accès privés** : volume plus faible, visiteurs premium
-
-Les goulots d’étranglement génèrent :
-
-- files d’attente,
-- perte de satisfaction,
-- départs prématurés,
-- pression sur la réputation.
-
-Améliorations UX prévues :
-- construction de routes en “drag” (maintenir pour peindre des routes),
-- barre de construction horizontale en bas.
-
----
-
-## 7️⃣ Temps, rétention & réputation
-
-Les visiteurs décident de rester selon :
-
-- satisfaction cumulée,
-- argent restant,
-- diversité des services utilisés,
-- temps d’attente,
-- qualité des déplacements,
-- interactions avec le personnel,
-- niveau de sécurité.
+## 9️⃣ Réputation & sécurité
 
 ### Réputation
 
-- Réputation globale unique (peut être **négative**)
-- La réputation intervient dans :
-  - les déblocages,
-  - les pré-requis des compétences (bâtiments et staff),
-  - les événements.
+- Score global unique (peut être négatif)
+- Prérequis de contenu (bâtiments/skills/branches) : argent + réputation min/max
 
-Conséquences :
+### Sécurité
 
-- déblocage / blocage de certains bâtiments,
-- modification du mix de visiteurs,
-- événements (contrôles, afflux, restrictions...).
+- Score global de délinquance/sécurité
+- Gardes patrouillent et influencent événements, satisfaction, rétention
 
 ---
 
-## 8️⃣ Passifs & synergies
+## 1️⃣0️⃣ Passifs & synergies
 
-### Passifs de bâtiments
-
-Chaque bâtiment peut débloquer des **passifs** qui influencent :
-
-- l’efficacité du personnel assigné,
-- la consommation d’endurance,
-- l’arrivée de visiteurs premium,
-- les revenus passifs,
-- la réputation,
-- la sécurité.
-
-Déblocage selon :
-
-- niveau du bâtiment,
-- personnel expérimenté,
-- investissements / recherche,
-- objectifs atteints,
-- pré-requis argent + réputation (positive ou négative).
+- Passifs buildings + staff + city modifiers
+- Synergies :
+  - proximité,
+  - chaînes économiques,
+  - districts spécialisés,
+  - staffing intelligent
 
 ---
 
-### Synergies
+## 1️⃣1️⃣ Dimension visuelle & sprites
 
-- Proximité logement / lieu de travail
-- Groupes de collègues stables
-- Spécialisation de quartier (zone hôtelière, zone de nuit, zone staff, etc.)
-- Chaînes économiques (ex : hôtel → restaurant → casino → services premium)
-
-👉 Le joueur cherche des **patterns de synergies** plutôt que des bonus isolés.
-
----
-
-## 9️⃣ Dimension visuelle & sprites
-
-### Principe général
-
-Tous les **acteurs du jeu** peuvent être représentés visuellement via des **sprites personnalisables** :
-
-- visiteurs,
-- personnel,
-- bâtiments,
-- améliorations,
-- compétences actives/passives,
-- effets visuels contextuels (revenus, proc de skill, alertes),
-- “affichages contextuels” (ex : image d’une travailleuse au-dessus d’un bâtiment lors d’un service).
-
-Une représentation minimale (rectangle + icône) doit rester possible, mais le système est conçu pour être **entièrement extensible graphiquement**.
-
----
-
-### Personnages (visiteurs & personnel)
-
-Chaque entité humaine dispose :
-
-- d’un **sprite de base** visible sur la carte,
-- de transitions simples possibles :
-  - déplacement,
-  - entrée / sortie de bâtiment,
-  - repos / attente,
-- d’une cohérence visuelle avec son état (travail, pause, déplacement).
-
-Les sprites :
-
-- peuvent être simples (rectangle + pictogramme),
-- ou remplacés par des assets plus détaillés,
-- sont **surchageables sans modifier le code**.
-
----
-
-### Système d’assets data-driven
-
-Le jeu doit permettre :
-
-- de **surcharger facilement les assets graphiques** (sprites, portraits, icônes, effets),
-- sans toucher au moteur,
-- via une **hiérarchie de dossiers claire** et des règles de sélection (AssetDefinition / SpriteRule).
-
-Exemple de structure indicative :
-
-```text
-assets/
-├─ characters/
-│   ├─ visitors/
-│   │   ├─ default/
-│   │   │   ├─ visitor_01.png
-│   │   │   ├─ visitor_02.png
-│   │   └─ premium/
-│   │       ├─ visitor_vip_01.png
-│   ├─ workers/
-│       ├─ service/
-│       ├─ security/
-│       └─ admin/
-├─ buildings/
-│   ├─ hotels/
-│   ├─ restaurants/
-│   ├─ casinos/
-├─ upgrades/
-│   ├─ building/
-│   ├─ worker/
-│   └─ city/
-└─ effects/
-    ├─ income/
-    ├─ skills/
-    └─ alerts/
-````
-
-Le moteur doit pouvoir :
-
-* sélectionner un sprite :
-
-  * aléatoirement,
-  * ou via des règles (type, niveau, état, tags),
-* gérer des **fallbacks** (asset par défaut si manquant),
-* permettre packs/graphiques alternatifs (skins, mods),
-* optimiser l’accès aux images (notamment pour les travailleuses) via cache/atlas/pooling.
-
----
-
-### UI & popups
-
-* Les popups d’informations doivent :
-
-  * avoir un emplacement prévu pour une **image associée**,
-  * afficher cette image **grisée + floue** si non débloquée,
-  * être **déplaçables** (drag & drop),
-  * rester cohérentes avec les popovers au-dessus des bâtiments.
-
-Cas particulier :
-
-* Quand un visiteur consomme un service impliquant une travailleuse :
-
-  * afficher temporairement au-dessus du bâtiment une **image de la travailleuse**, avec une animation similaire aux gains (apparition + fade).
+- Tous les acteurs + systèmes (bâtiments/visiteurs/staff/skills/upgrades/effects) sont affichables via assets **surchargeables**
+- Asset resolver via `AssetDefinition` + `SpriteRule` + fallback
+- Optimisation images : cache/atlas/pooling
+- UI popups : slot image (gris/flou si locked) + draggable
+- Effets contextuels : ex afficher l’image d’une travailleuse au-dessus d’un bâtiment pendant un service
 
 ---
 
 ## 🔧 Spécifications techniques & rigueur
 
-### Stack
-
-* Next.js (React)
-* Pixi.js
-* TypeScript strict
-* Architecture **data-driven**, moteur agnostique côté design
-* Configurations via JSON (definitions, rules, economy, skills, assets…)
-
-### Contraintes strictes
-
-* ❌ Aucun déplacement diagonal (pathfinding orthogonal)
-* ⏸ Pause parfaite :
-
-  * timers ajustés,
-  * pas de déclenchement instantané à la reprise
-* 🧠 Calculs déterministes, traçables, facilement loggables
-* 🖱 Curseur **toujours en croix** sur le canvas de jeu
-* 🧱 Routes non interactives (pas de sélection, pas de clic payant)
-* 🎛 UI claire, minimaliste, pédagogique (tooltips courts, explicites)
-* 🎨 Aucun sprite “codé en dur” : tout passe par les définitions d’assets/règles
-* 🧱 Bâtiments de tailles différentes : règles de placement/occupation de grille cohérentes
-
-Le code doit rester :
-
-* lisible,
-* extensible,
-* exploitable par un agent IA ou un développeur solo,
-* découplé du style graphique concret.
+- Next.js + Pixi.js + TypeScript strict
+- Architecture data-driven (JSON pour definitions/rules/economy/skills/assets)
+- Invariants :
+  - pas de diagonale
+  - pause parfaite
+  - routes non interactives
+  - curseur crosshair
+  - bâtiments tailles variables
+  - construction limitée à zone débloquée/générée
+  - économie multi-échelles (ponctuel/journalier/mensuel)
 
 ---
 
-## 1️⃣0️⃣ TODO — Avancement du projet
+## 1️⃣2️⃣ TODO — Avancement du projet
 
 ### ✅ Fondations déjà en place
 
-* [x] Grille orthogonale et placement centré sur les cases
-* [x] Routes & pathfinding sans diagonales
-* [x] Personnes autonomes se déplaçant sur les routes
-* [x] Entrée visuelle des personnes dans les bâtiments
-* [x] Bâtiments produisant automatiquement de l’argent
-* [x] Production passive basée sur :
+- [x] Grille orthogonale et placement centré sur les cases
+- [x] Routes & pathfinding sans diagonales
+- [x] Personnes autonomes se déplaçant sur les routes
+- [x] Entrée visuelle des personnes dans les bâtiments
+- [x] Bâtiments produisant automatiquement de l’argent
+- [x] Production passive basée sur type/niveau/occupants
+- [x] Pause / reprise propre (bâtiments + personnages)
+- [x] UI globale (barre supérieure)
+- [x] Popovers de bâtiments au-dessus du bâtiment sélectionné
+- [x] Tooltips économiques simples et lisibles
+- [x] Curseur en croix sur le canvas
 
-  * le type de bâtiment,
-  * son niveau,
-  * le nombre d’occupants
-* [x] Système de pause / reprise propre (bâtiments + personnages)
-* [x] UI globale (barre supérieure) : argent, personnes en déplacement, occupation par type de bâtiment
-* [x] Popovers de bâtiments contextuels au-dessus du bâtiment sélectionné
-* [x] Tooltips économiques simples et lisibles
-* [x] Curseur en croix sur la zone de jeu
+### ⏳ À faire / améliorer
 
----
-
-### ⏳ À faire / améliorer (liste priorisée)
-
-* [x] Système de jour / mois / heure locale
-* [x] Dette : chaque mois, remboursement obligatoire ; la dette grossit
-* [x] Popups d’informations : zone image + image grisée/floue si non débloquée
-* [x] Popups d’informations : déplaçables (drag)
-* [x] Arbres de compétences horizontaux + scrollables
-* [x] Personnages (non-staff) : pas d’arbre ; barre d’XP qui modifie les caractéristiques
-* [x] Barre de construction horizontale en bas (remplace l’actuelle)
-* [x] Construction routes en “peinture” : maintenir le bouton pour tirer des routes
-* [x] Réputation : score global pouvant être négatif ; prérequis argent + réputation (positive/négative) pour compétences (bâtiments & staff)
-* [x] Sécurité/délinquance : afficher un score global
-* [x] Gardes : recruter un personnel “Garde” qui patrouille (effet sur sécurité)
-* [x] Service avec travailleuse : afficher son image au-dessus du bâtiment temporairement (comme un gain)
-* [x] Optimiser l’accès aux images (surtout travailleuses) : cache/atlas/pooling
-* [x] Bâtiments de tailles différentes : placement, collisions, adjacency routes
-* [x] Supprimer exemples en dur : tout paramétrable via JSON
-* [x] Mettre en place les conditions d’activation des compétences via contrats (conditions/procs) comme pour AssetDefinition/SpriteRule
-
----
+- [ ] Génération de carte initiale (taille définie) + extension via achat
+- [ ] Districts aléatoires visibles (taille/position aléatoires) + règles data-driven
+- [ ] Construction limitée à la zone débloquée
+- [ ] Économie multi-échelles (ponctuel/journalier/mensuel) appliquée à tous bâtiments
+- [ ] Coûts mensuels (entretien bâtiments, salaires, etc.)
+- [ ] Revenus ponctuels (consommation) + revenus journaliers
+- [ ] Intégration districts → bonus/malus + déblocages
+- [ ] Ajuster tooltips pour expliquer les calculs par temporalité (jour/mois/ponctuel)
 
 ### 🚀 Vision long terme
 
-* [x] Compétences actives & passives pour bâtiments et personnel
-* [x] Événements dynamiques (afflux, contrôles, incidents abstraits)
-* [x] IA décisionnelle avancée pour visiteurs & personnel
-* [x] Spécialisation de quartiers (zones thématiques, bonus contextuels)
-* [x] Économie multi-niveaux (coûts d’entretien, salaires, taxes abstraites)
-* [ ] Sauvegarde / reprise complète (ville, personnel, arbres de compétences, assets actifs)
-* [ ] Support complet de packs graphiques / mods (thèmes visuels alternatifs)
+- [ ] Sauvegarde / reprise complète (ville, personnel, skills, assets actifs)
+- [ ] Packs graphiques / mods complets (thèmes visuels alternatifs)
 
 ---
 
 ## 🎯 Intention finale
 
-Mini City Tycoon est pensé comme :
-
-> Une **simulation de gestion adulte, élégante, systémique et modulaire**,
-> où chaque entité est à la fois **calculable** et **observable**,
-> et où le moteur de simulation peut vivre indépendamment de son habillage graphique.
-
-Un projet :
-
-* orienté systèmes plutôt que narration explicite,
-* prêt pour le modding et l’extension,
-* compréhensible et manipulable par une IA comme par un humain,
-* conçu pour évoluer en **vrai Game Design Document formel** sans réécriture majeure.
+> Une simulation de gestion adulte, élégante, systémique et modulaire,  
+> où chaque entité est calculable et observable,  
+> et où le moteur vit indépendamment de son habillage graphique.
 
 ---
