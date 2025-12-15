@@ -1,10 +1,17 @@
 import { InfoImageSlot } from './InfoImageSlot';
-import { BuildingState, BuildingType, calculateIncome, calculateUpgradeCost } from '@/types/types';
+import {
+  BuildingState,
+  BuildingType,
+  calculateIncome,
+  calculateUpgradeCost,
+} from '@/types/types';
+import { SelectedBuildingComputed } from '@/pixi/Game';
 import React from 'react';
 
 interface DetailsProps {
   type: BuildingType;
   state: BuildingState;
+  computed?: SelectedBuildingComputed | null;
   money: number;
   onUpgrade: () => void;
 }
@@ -12,6 +19,7 @@ interface DetailsProps {
 export const BuildingDetails: React.FC<DetailsProps> = ({
   type,
   state,
+  computed,
   money,
   onUpgrade,
 }) => {
@@ -38,18 +46,17 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
     staffCapacity > 0
       ? Math.min(1, staffCount / staffCapacity)
       : 0;
-  const currentTickIncome = Math.floor(
-    baseIncome * (1 + ratio) * (1 + staffRatio * type.staffEfficiency)
-  );
+  const computedIncomePerTick = computed?.incomePerTick ?? null;
+  const currentTickIncome =
+    computedIncomePerTick ??
+    Math.floor(baseIncome * (1 + ratio) * (1 + staffRatio * type.staffEfficiency));
+  const incomeWithEvents = computed?.incomeWithEvents ?? currentTickIncome;
+  const eventMultiplier = computed?.eventMultiplier ?? 1;
 
+  const effectiveIntervalMs = computed?.intervalMs ?? state.productionIntervalMs;
   const ticksPerSecond =
-    state.productionIntervalMs > 0
-      ? 1000 / state.productionIntervalMs
-      : 0;
-  const intervalSec =
-    state.productionIntervalMs > 0
-      ? state.productionIntervalMs / 1000
-      : 0;
+    effectiveIntervalMs > 0 ? 1000 / effectiveIntervalMs : 0;
+  const intervalSec = effectiveIntervalMs > 0 ? effectiveIntervalMs / 1000 : 0;
 
   return (
     <div className="p-4 bg-slate-700/90 rounded-lg shadow-xl border border-slate-600">
@@ -120,8 +127,13 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
           <div className="relative inline-flex items-center gap-1 group cursor-help">
             <span>💰 Prod actuelle :</span>
             <span className="font-mono text-amber-400">
-              {currentTickIncome}€ / tick
+              {incomeWithEvents}€ / tick
             </span>
+            {eventMultiplier !== 1 && (
+              <span className="rounded px-1.5 py-0.5 text-[11px] bg-indigo-500/20 text-indigo-100 border border-indigo-400/50">
+                Événements x{eventMultiplier.toFixed(2)}
+              </span>
+            )}
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-400/40 text-amber-200">
               ?
             </span>
@@ -134,6 +146,12 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
               <p className="flex justify-between">
                 <span>Base</span>
                 <span className="font-mono">{baseIncome}€ / tick</span>
+              </p>
+              <p className="flex justify-between">
+                <span>Passifs & occupants</span>
+                <span className="font-mono">
+                  {currentTickIncome}€ / tick
+                </span>
               </p>
               {type.capacity > 0 && (
                 <p className="flex justify-between">
@@ -151,10 +169,16 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                   </span>
                 </p>
               )}
+              {eventMultiplier !== 1 && (
+                <p className="flex justify-between text-indigo-200">
+                  <span>Modificateur évènement</span>
+                  <span className="font-mono">x{eventMultiplier.toFixed(2)}</span>
+                </p>
+              )}
               <div className="mt-1 border-t border-slate-700 pt-1 flex justify-between">
                 <span>Total actuel</span>
                 <span className="font-mono text-amber-300">
-                  {currentTickIncome}€ / tick
+                  {incomeWithEvents}€ / tick
                 </span>
               </div>
             </div>
