@@ -73,7 +73,7 @@ export const EventTicker: React.FC<Props> = ({ events }) => {
         const summary = effectSummary(event);
 
         return (
-          <div key={event.id} className="group pointer-events-auto relative">
+          <div key={event.instanceId} className="group pointer-events-auto relative">
             <div className="flex items-center gap-3 rounded-xl border border-slate-800/90 bg-slate-900/90 px-3 py-2 shadow-xl backdrop-blur-md">
               <div
                 className={`h-10 w-1 rounded-full bg-gradient-to-b ${severityColors[event.severity]}`}
