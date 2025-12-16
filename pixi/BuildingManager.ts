@@ -17,6 +17,11 @@ export class BuildingManager {
   private draggingType: BuildingType | null = null;
   private ghost: Graphics | null = null;
   private onBuildingPlaced?: (building: Building) => void;
+  private placementValidator?: (
+    gridX: number,
+    gridY: number,
+    type: BuildingType
+  ) => boolean;
 
   constructor(app: Application, world: Container) {
     this.app = app;
@@ -27,6 +32,12 @@ export class BuildingManager {
 
   public setOnBuildingPlaced(callback: ((building: Building) => void) | undefined) {
     this.onBuildingPlaced = callback;
+  }
+
+  public setPlacementValidator(
+    validator: ((gridX: number, gridY: number, type: BuildingType) => boolean) | null
+  ) {
+    this.placementValidator = validator ?? undefined;
   }
 
   private key(gx: number, gy: number) {
@@ -57,6 +68,9 @@ export class BuildingManager {
     gridY: number,
     type: BuildingType
   ): boolean {
+    if (this.placementValidator && !this.placementValidator(gridX, gridY, type)) {
+      return false;
+    }
     if (!this.isWithinBounds(gridX, gridY, type)) return false;
     if (!this.isAreaFree(gridX, gridY, type)) return false;
     if (!this.hasRequiredRoadAdjacency(gridX, gridY, type)) return false;
@@ -270,6 +284,9 @@ export class BuildingManager {
 
     const isOccupied = !this.isAreaFree(gridX, gridY, this.draggingType);
     const outOfBounds = !this.isWithinBounds(gridX, gridY, this.draggingType);
+    const rejectedByRule =
+      this.placementValidator &&
+      !this.placementValidator(gridX, gridY, this.draggingType);
     const hasRoadAccess = this.hasRequiredRoadAdjacency(
       gridX,
       gridY,
@@ -277,6 +294,8 @@ export class BuildingManager {
     );
 
     this.ghost.tint =
-      isOccupied || outOfBounds || !hasRoadAccess ? 0xef4444 : 0x22c55e;
+      isOccupied || outOfBounds || !hasRoadAccess || rejectedByRule
+        ? 0xef4444
+        : 0x22c55e;
   }
 }

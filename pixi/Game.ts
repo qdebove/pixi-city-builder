@@ -1,6 +1,19 @@
-import { Application, Assets, FederatedPointerEvent, Point, Texture } from 'pixi.js';
+import {
+  Application,
+  Assets,
+  FederatedPointerEvent,
+  Graphics,
+  Point,
+  Texture,
+} from 'pixi.js';
 import { AssetDefinition } from '../types/data-contract';
-import { BuildingState, BuildingType, PersonRole, calculateUpgradeCost } from '../types/types';
+import {
+  BuildingState,
+  BuildingType,
+  PersonRole,
+  calculateUpgradeCost,
+  CELL_SIZE,
+} from '../types/types';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
@@ -26,6 +39,8 @@ import { Worker } from '@/types/data-contract';
 import { computeWorkerCost } from './data/recruitment';
 import { EconomySnapshot, EconomySystem } from './EconomySystem';
 import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
+import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
+import { MAP_SETTINGS } from './data/map-settings';
 
 export interface SelectedBuildingComputed {
   incomePerTick: number;
@@ -58,6 +73,7 @@ export interface GameUIState {
   hiredByJob: Record<string, number>;
   economy: EconomySnapshot;
   districts: DistrictSnapshot;
+  buildZone: BuildZoneSnapshot;
 }
 
 export class Game {
@@ -70,6 +86,7 @@ export class Game {
   private debtSystem: DebtSystem;
   private economySystem: EconomySystem;
   private districtSystem: DistrictSystem;
+  private buildZoneSystem: BuildZoneSystem;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
   private skillEngine: SkillEngine;
@@ -87,6 +104,9 @@ export class Game {
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
   private activeEvents: ActiveEventSnapshot[] = [];
+
+  private buildZoneOverlay?: Graphics;
+  private districtOverlay?: Graphics;
 
   private isPaintingRoad = false;
   private lastPaintedCell: { gridX: number; gridY: number } | null = null;
@@ -108,6 +128,7 @@ export class Game {
     this.debtSystem = new DebtSystem(DEBT_SETTINGS);
     this.economySystem = new EconomySystem(ECONOMY_SETTINGS, TIME_SETTINGS);
     this.districtSystem = new DistrictSystem();
+    this.buildZoneSystem = new BuildZoneSystem(MAP_SETTINGS);
     this.securitySystem = new SecuritySystem();
     this.securitySnapshot = this.securitySystem.snapshot();
 
@@ -135,6 +156,9 @@ export class Game {
 
     this.worldView = new WorldView(this.app);
     this.buildingManager = new BuildingManager(this.app, this.worldView.world);
+    this.buildingManager.setPlacementValidator((gx, gy, type) =>
+      this.buildZoneSystem.canBuildAt(gx, gy, type.width, type.height)
+    );
     this.buildingManager.setOnBuildingPlaced((building) => {
       const zone = this.districtSystem.getDistrictForBuilding(building);
       building.setDistrict(zone?.id);
@@ -150,6 +174,10 @@ export class Game {
 
     this.syncPeoplePool();
 
+    this.districtSystem.generateZones();
+    this.drawDistricts();
+    this.drawBuildZone();
+
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
     this.app.stage.on('pointerup', this.stopRoadPainting.bind(this));
@@ -157,6 +185,56 @@ export class Game {
     this.app.ticker.add(this.onFrameUpdate);
 
     this.emitState();
+  }
+
+  private drawBuildZone() {
+    if (this.buildZoneOverlay) {
+      this.buildZoneOverlay.destroy();
+    }
+
+    const g = new Graphics();
+    const bounds = this.buildZoneSystem.getBounds();
+    g.zIndex = -1;
+    g.rect(
+      bounds.x * CELL_SIZE,
+      bounds.y * CELL_SIZE,
+      bounds.width * CELL_SIZE,
+      bounds.height * CELL_SIZE
+    )
+      .fill({ color: 0x0ea5e9, alpha: 0.14 })
+      .stroke({ width: 4, color: 0x38bdf8, alpha: 0.8 });
+
+    this.buildZoneOverlay = g;
+    this.worldView.world.addChild(g);
+    this.worldView.setPanBounds({
+      x: bounds.x * CELL_SIZE,
+      y: bounds.y * CELL_SIZE,
+      width: bounds.width * CELL_SIZE,
+      height: bounds.height * CELL_SIZE,
+    });
+  }
+
+  private drawDistricts() {
+    if (this.districtOverlay) {
+      this.districtOverlay.destroy();
+    }
+
+    const overlay = new Graphics();
+    overlay.zIndex = -2;
+    this.districtSystem.getZones().forEach((zone) => {
+      overlay
+        .rect(
+          zone.area.x * CELL_SIZE,
+          zone.area.y * CELL_SIZE,
+          zone.area.width * CELL_SIZE,
+          zone.area.height * CELL_SIZE
+        )
+        .fill({ color: zone.color, alpha: 0.05 })
+        .stroke({ width: 2, color: zone.color, alpha: 0.4 });
+    });
+
+    this.districtOverlay = overlay;
+    this.worldView.world.addChild(overlay);
   }
 
   private async preloadAssets() {
@@ -202,6 +280,16 @@ export class Game {
 
     if (upkeep > 0) {
       this.money -= upkeep;
+    }
+
+    if (timeAdvance.daysAdvanced > 0) {
+      const dailyIncome = this.economySystem.applyDailyIncome(
+        this.buildingManager.getBuildings(),
+        timeAdvance.daysAdvanced
+      );
+      if (dailyIncome !== 0) {
+        this.money += dailyIncome;
+      }
     }
 
     this.buildingManager.getBuildings().forEach((building) => {
@@ -402,6 +490,20 @@ export class Game {
         this.emitState();
       }
     }
+  }
+
+  public expandBuildZone(): boolean {
+    const cost = this.buildZoneSystem.getNextExpansionCost();
+    if (this.money < cost) return false;
+
+    const expanded = this.buildZoneSystem.tryExpand();
+    if (!expanded) return false;
+
+    this.money -= cost;
+    this.economySystem.recordExpense(cost);
+    this.drawBuildZone();
+    this.emitState();
+    return true;
   }
 
   public harvestBuilding(
@@ -628,6 +730,7 @@ export class Game {
     const districts = this.districtSystem.snapshot(
       this.buildingManager.getBuildings()
     );
+    const buildZone = this.buildZoneSystem.snapshot();
 
     this.onStateChange({
       money: this.money,
@@ -655,10 +758,13 @@ export class Game {
       hiredByJob,
       economy,
       districts,
+      buildZone,
     });
   }
 
   public destroy() {
+    this.buildZoneOverlay?.destroy();
+    this.districtOverlay?.destroy();
     this.worldView.destroy();
     this.app.destroy(true, { children: true });
   }

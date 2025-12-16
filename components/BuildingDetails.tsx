@@ -6,6 +6,7 @@ import {
   calculateUpgradeCost,
 } from '@/types/types';
 import { SelectedBuildingComputed } from '@/pixi/Game';
+import { TIME_SETTINGS } from '@/pixi/data/time-settings';
 import React from 'react';
 
 interface DetailsProps {
@@ -58,6 +59,9 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
     Math.floor(currentTickIncome * Math.max(0, eventMultiplier));
   const districtName = computed?.districtName ?? 'Hors district';
   const districtMultiplier = computed?.districtIncomeMultiplier ?? 1;
+  const dailyPassive = Math.floor(
+    (type.dailyPassiveIncome ?? 0) * occupancyMultiplier * Math.max(1, districtMultiplier)
+  );
 
   const formatSignedAmount = (amount: number) =>
     `${amount >= 0 ? '+' : '-'}${Math.abs(amount)}€ / tick`;
@@ -66,6 +70,15 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const ticksPerSecond =
     effectiveIntervalMs > 0 ? 1000 / effectiveIntervalMs : 0;
   const intervalSec = effectiveIntervalMs > 0 ? effectiveIntervalMs / 1000 : 0;
+  const msPerDay = TIME_SETTINGS.msPerHour * TIME_SETTINGS.hoursPerDay;
+  const incomePerDay =
+    effectiveIntervalMs > 0
+      ? Math.floor((incomeWithEvents * msPerDay) / effectiveIntervalMs)
+      : 0;
+  const projectedDaily = incomePerDay + dailyPassive;
+  const projectedMonthly = projectedDaily * TIME_SETTINGS.daysPerMonth;
+  const maintenancePerDay = type.maintenancePerDay ?? 0;
+  const maintenancePerMonth = maintenancePerDay * TIME_SETTINGS.daysPerMonth;
 
   return (
     <div className="p-4 bg-slate-700/90 rounded-lg shadow-xl border border-slate-600">
@@ -193,6 +206,28 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
                   <span className="font-mono">x{eventMultiplier.toFixed(2)}</span>
                 </p>
               )}
+              <div className="mt-2 border-t border-slate-700 pt-1 space-y-1">
+                <p className="flex justify-between text-slate-200">
+                  <span>Revenus ponctuels</span>
+                  <span className="font-mono">{incomeWithEvents}€ / tick</span>
+                </p>
+                <p className="flex justify-between text-slate-200">
+                  <span>Passif journalier</span>
+                  <span className="font-mono">{dailyPassive}€</span>
+                </p>
+                <p className="flex justify-between text-emerald-200">
+                  <span>Journée (total)</span>
+                  <span className="font-mono">{projectedDaily}€ / jour</span>
+                </p>
+                <p className="flex justify-between text-slate-100">
+                  <span>Projection mensuelle</span>
+                  <span className="font-mono">{projectedMonthly}€ / mois</span>
+                </p>
+                <p className="flex justify-between text-amber-200">
+                  <span>Entretien mensuel</span>
+                  <span className="font-mono">-{maintenancePerMonth}€</span>
+                </p>
+              </div>
               <div className="mt-1 border-t border-slate-700 pt-1 flex justify-between">
                 <span>Total actuel</span>
                 <span className="font-mono text-amber-300">

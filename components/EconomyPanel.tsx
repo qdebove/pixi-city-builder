@@ -16,6 +16,9 @@ const formatMoney = (value: number) =>
 
 export const EconomyPanel: React.FC<EconomyPanelProps> = ({ economy, districts }) => {
   const netMonthly = economy.monthIncome - economy.monthExpenses;
+  const netDaily =
+    economy.dailyPassiveIncome -
+    (economy.dailyMaintenance + economy.dailySalaries);
 
   return (
     <div className="space-y-4">
@@ -27,6 +30,18 @@ export const EconomyPanel: React.FC<EconomyPanelProps> = ({ economy, districts }
       </header>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+          <p className="text-xs uppercase text-slate-400">Revenus quotidiens</p>
+          <p className="text-lg font-semibold text-emerald-200">
+            {formatMoney(economy.dailyPassiveIncome)} / jour
+          </p>
+          <div className="mt-1 text-xs text-slate-300">
+            <p>Dernier versement : {formatMoney(economy.lastDailyIncome)}</p>
+            <p className={netDaily >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+              Net après charges : {formatMoney(netDaily)} / jour
+            </p>
+          </div>
+        </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
           <p className="text-xs uppercase text-slate-400">Charges quotidiennes</p>
           <p className="text-lg font-semibold text-amber-200">

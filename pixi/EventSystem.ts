@@ -5,6 +5,7 @@ import { getEventDefinitions } from './data/events';
 
 export interface ActiveEventSnapshot {
   id: string;
+  instanceId: number;
   title: string;
   description: string;
   remainingMs: number;
@@ -24,6 +25,7 @@ export interface EventModifiers {
 interface ActiveEventState {
   definition: DynamicEventDefinition;
   remainingMs: number;
+  instanceId: number;
 }
 
 export class EventSystem {
@@ -34,6 +36,7 @@ export class EventSystem {
   private readonly eventLibrary: DynamicEventDefinition[];
   private activeEvents: ActiveEventState[] = [];
   private nextEventAtMs: number;
+  private nextInstanceId = 0;
 
   constructor() {
     this.eventLibrary = getEventDefinitions();
@@ -51,15 +54,18 @@ export class EventSystem {
 
     return {
       ...modifiers,
-      activeEvents: this.activeEvents.map(({ definition, remainingMs }) => ({
-        id: definition.id,
-        title: definition.title,
-        description: definition.description,
-        remainingMs,
-        durationMs: definition.durationMs,
-        severity: definition.severity,
-        effects: definition.effects,
-      })),
+      activeEvents: this.activeEvents.map(
+        ({ definition, remainingMs, instanceId }) => ({
+          id: definition.id,
+          instanceId,
+          title: definition.title,
+          description: definition.description,
+          remainingMs,
+          durationMs: definition.durationMs,
+          severity: definition.severity,
+          effects: definition.effects,
+        })
+      ),
     };
   }
 
@@ -116,6 +122,7 @@ export class EventSystem {
     this.activeEvents.push({
       definition,
       remainingMs: definition.durationMs,
+      instanceId: this.nextInstanceId++,
     });
 
     this.nextEventAtMs = this.computeNextEventTarget(nowMs);
