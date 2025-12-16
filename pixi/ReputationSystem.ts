@@ -89,6 +89,14 @@ export class ReputationSystem {
     };
   }
 
+  public hydrate(snapshot: ReputationSnapshot) {
+    this.state = {
+      local: clamp(snapshot.local, -100, 100),
+      premium: clamp(snapshot.premium, -100, 100),
+      regulatoryPressure: clamp(snapshot.regulatoryPressure, 0, 100),
+    };
+  }
+
   private computeOccupancyScore(buildings: Building[]): number {
     const occupancies = buildings
       .filter((b) => !b.type.isRoad)
@@ -140,4 +148,3 @@ export class ReputationSystem {
     return clamp(visitorPressure + staffSafety * 0.5, 0, 1);
   }
 }
-

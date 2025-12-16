@@ -53,4 +53,8 @@ export class DebtSystem {
   public snapshotState(): DebtSnapshot {
     return { ...this.snapshot };
   }
+
+  public hydrate(snapshot: DebtSnapshot) {
+    this.snapshot = { ...snapshot };
+  }
 }

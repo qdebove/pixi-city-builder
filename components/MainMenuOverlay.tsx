@@ -11,6 +11,10 @@ import { MENU_LAYOUT, MenuTabConfig } from '@/pixi/data/ui-layout';
 import { EconomySnapshot } from '@/pixi/EconomySystem';
 import { DistrictSnapshot } from '@/pixi/DistrictSystem';
 import { EconomyPanel } from './EconomyPanel';
+import { SaveManagerPanel } from './SaveManagerPanel';
+import { AssetPackPanel } from './AssetPackPanel';
+import { SavedGameMetadata } from '@/types/save';
+import { AssetPackPreview } from '@/pixi/assets/packs';
 
 const GUARD_WORKER_ID = 'worker_salma';
 
@@ -51,6 +55,18 @@ const FALLBACK_TABS: MenuTabConfig[] = [
     description: 'Vue consolidée des flux financiers et bonus de districts.',
     layout: 'vertical',
   },
+  {
+    id: 'saves',
+    label: 'Sauvegardes',
+    description: 'Snapshots locaux et reprise intégrale.',
+    layout: 'vertical',
+  },
+  {
+    id: 'mods',
+    label: 'Packs visuels',
+    description: 'Activer un thème graphique alternatif.',
+    layout: 'vertical',
+  },
 ];
 
 export type MenuTab = MenuTabConfig['id'];
@@ -72,6 +88,14 @@ interface MainMenuOverlayProps {
   onHireWorker: (workerId: string) => void;
   economy: EconomySnapshot;
   districts: DistrictSnapshot;
+  onSaveGame: () => void;
+  onLoadGame: () => void;
+  onClearSave: () => void;
+  saveMetadata: SavedGameMetadata | null;
+  saveVersion: number;
+  availableAssetPacks: AssetPackPreview[];
+  activeAssetPacks: string[];
+  onUpdateAssetPacks: (packIds: string[]) => void | Promise<void>;
 }
 
 export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
@@ -91,6 +115,14 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
   onHireWorker,
   economy,
   districts,
+  onSaveGame,
+  onLoadGame,
+  onClearSave,
+  saveMetadata,
+  saveVersion,
+  availableAssetPacks,
+  activeAssetPacks,
+  onUpdateAssetPacks,
 }) => {
   const tabs = useMemo<MenuTabConfig[]>(() => {
     if (MENU_LAYOUT.menuTabs && MENU_LAYOUT.menuTabs.length > 0) {
@@ -194,6 +226,22 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
             )}
             {activeTabId === 'economy' && (
               <EconomyPanel economy={economy} districts={districts} />
+            )}
+            {activeTabId === 'saves' && (
+              <SaveManagerPanel
+                metadata={saveMetadata}
+                onSave={onSaveGame}
+                onLoad={onLoadGame}
+                onClear={onClearSave}
+                version={saveVersion}
+              />
+            )}
+            {activeTabId === 'mods' && (
+              <AssetPackPanel
+                packs={availableAssetPacks}
+                active={activeAssetPacks}
+                onUpdate={onUpdateAssetPacks}
+              />
             )}
           </div>
         </div>

@@ -165,6 +165,37 @@ export class Building extends Container {
     this.state.districtId = districtId;
   }
 
+  public hydrate(payload: {
+    state: BuildingState;
+    staffProfiles?: Worker[];
+    visitorProfiles?: Visitor[];
+  }) {
+    const staffProfiles = [...(payload.staffProfiles ?? [])];
+    const visitorProfiles = [...(payload.visitorProfiles ?? [])];
+    const staffCount = staffProfiles.length;
+    const visitorCount = Math.max(
+      payload.state.occupants.visitor ?? visitorProfiles.length,
+      visitorProfiles.length
+    );
+
+    this.state = {
+      ...payload.state,
+      occupants: {
+        visitor: visitorCount,
+        staff: staffCount,
+      },
+      currentOccupants: this.computeTotalOccupants({
+        visitor: visitorCount,
+        staff: staffCount,
+      }),
+    };
+    this.districtId = payload.state.districtId;
+    this.staffMembers = staffProfiles;
+    this.visitors = visitorProfiles.slice(0, visitorCount);
+    this.incomeProgressMs = 0;
+    this.drawVisual();
+  }
+
   public setSelected(isSelected: boolean) {
     this.selectionRing.visible = isSelected;
     this.zIndex = isSelected ? 100 : 1;

@@ -73,6 +73,13 @@ export class PeopleManager {
     this.people.forEach((p) => p.setPaused(true));
   }
 
+  public resetPeople() {
+    this.people.forEach((p) => p.destroy());
+    this.people = [];
+    this.lastTileKey.clear();
+    this.elapsedSinceSpawn = 0;
+  }
+
   public resumeAll() {
     this.people = this.people.filter((p) => !p.destroyed);
     this.people.forEach((p) => p.setPaused(false));
