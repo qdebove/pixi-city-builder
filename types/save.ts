@@ -7,6 +7,8 @@ import { BuildingState } from './types';
 import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 import { TimeSnapshot } from '@/pixi/TimeSystem';
 import { DebtSnapshot } from '@/pixi/DebtSystem';
+import { PersonRole } from './types';
+import { Visitor, Worker } from './data-contract';
 
 export interface PersistedBuildingState {
   gridX: number;
@@ -28,6 +30,33 @@ export interface SimulationSaveState {
   nowMs: number;
 }
 
+export interface PersistedPersonPathNode {
+  x: number;
+  y: number;
+}
+
+export type PersistedPersonBehavior =
+  | { kind: 'wander' }
+  | { kind: 'patrol'; basePath: PersistedPersonPathNode[] }
+  | { kind: 'entering'; targetInstanceId: string };
+
+export interface PersistedPersonState {
+  id: string;
+  role: PersonRole;
+  profile: Visitor | Worker;
+  path: PersistedPersonPathNode[];
+  segmentIndex: number;
+  segmentProgress: number;
+  paused: boolean;
+  behavior: PersistedPersonBehavior;
+}
+
+export interface PersistedPeopleState {
+  elapsedSinceSpawn: number;
+  spawnIntervalMultiplier: number;
+  persons: PersistedPersonState[];
+}
+
 export interface GameSaveState {
   version: number;
   timestamp: number;
@@ -45,6 +74,7 @@ export interface GameSaveState {
   events: EventSystemSave;
   simulation: SimulationSaveState;
   activeAssetPacks: string[];
+  people?: PersistedPeopleState;
 }
 
 export interface SavedGameMetadata {

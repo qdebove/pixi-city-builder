@@ -814,7 +814,7 @@ export class Game {
         gridX: building.gridX,
         gridY: building.gridY,
         typeId: building.type.id,
-        state: { ...building.state },
+        state: { ...building.state, incomeProgressMs: building.getIncomeProgressMs() },
         staffIds: building.getStaffMembers().map((worker) => worker.id),
         visitorCount: building.getOccupantsByRole().visitor ?? 0,
       }));
@@ -836,6 +836,7 @@ export class Game {
       events: this.eventSystem.snapshot(),
       simulation: this.simulation.snapshotState(),
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
+      people: this.peopleManager.snapshot(),
     };
   }
 
@@ -870,6 +871,7 @@ export class Game {
     const workerCatalog = new Map<string, Worker>();
     WORKER_ROSTER.forEach((worker) => workerCatalog.set(worker.id, worker));
     this.buildingManager.hydrateBuildings(save.buildings, workerCatalog);
+    this.peopleManager.hydrate(save.people);
 
     this.recomputeGuardPresence();
     this.selectedBuilding = null;
