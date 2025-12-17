@@ -9,6 +9,13 @@ import { PersonFactory } from './data/person-factory';
 import { SelectedPersonSnapshot } from '@/types/ui';
 import { DecisionAI, EntryDecision } from './decision/DecisionAI';
 import { Visitor, Worker } from '@/types/data-contract';
+import { BuildingState } from '@/types/types';
+import { PersistedPeopleState, PersistedPersonState } from '@/types/save';
+
+type PersonBehavior =
+  | { kind: 'wander' }
+  | { kind: 'patrol'; basePath: Point[] }
+  | { kind: 'entering'; targetInstanceId: string };
 
 export class PeopleManager {
   private app: Application;
@@ -27,6 +34,7 @@ export class PeopleManager {
   private spawnIntervalMultiplier = 1;
 
   private lastTileKey = new Map<Person, string>();
+  private behaviors = new Map<string, PersonBehavior>();
 
   constructor(
     app: Application,
@@ -48,6 +56,7 @@ export class PeopleManager {
 
   public update(ctx: TickContext) {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
 
     this.elapsedSinceSpawn += ctx.deltaMs;
 
@@ -70,16 +79,27 @@ export class PeopleManager {
 
   public pauseAll() {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
     this.people.forEach((p) => p.setPaused(true));
+  }
+
+  public resetPeople() {
+    this.people.forEach((p) => p.destroy());
+    this.people = [];
+    this.lastTileKey.clear();
+    this.elapsedSinceSpawn = 0;
+    this.behaviors.clear();
   }
 
   public resumeAll() {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
     this.people.forEach((p) => p.setPaused(false));
   }
 
   public getPeopleCount(): number {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
     return this.people.length;
   }
 
@@ -177,16 +197,9 @@ export class PeopleManager {
     );
 
     if (role === 'staff' && this.isGuard(profile)) {
-      let reverse = false;
-      const assignNext = () => {
-        const nextPath = reverse ? [...pathPoints].reverse() : pathPoints;
-        reverse = !reverse;
-        person.setPath(nextPath);
-      };
-      person.setOnFinished(() => {
-        assignNext();
-        return true;
-      });
+      this.setGuardPatrolBehavior(person, pathPoints);
+    } else {
+      this.behaviors.set(person.getId(), { kind: 'wander' });
     }
     person.zIndex = 1000;
     this.world.addChild(person);
@@ -271,14 +284,7 @@ export class PeopleManager {
     // trajet "classique" : position actuelle → centre de la route → centre du bâtiment
     const path: Point[] = [currentPos, roadCenter, buildingCenter];
 
-    person.setPath(path, () => {
-      target.building.addOccupant(person.role, person.getProfile());
-      this.lastTileKey.delete(person);
-      if (this.onPersonRemoved) {
-        this.onPersonRemoved(person.getId());
-      }
-      person.destroy();
-    });
+    this.setEnteringBehavior(person, target.building.state, path);
   }
 
   private pickRole(): PersonRole {
@@ -306,8 +312,58 @@ export class PeopleManager {
     return this.decisionAI.chooseBuildingForVisitor(visitor, candidates);
   }
 
+  private cleanupBehaviors() {
+    const alive = new Set(this.people.map((p) => p.getId()));
+    for (const id of this.behaviors.keys()) {
+      if (!alive.has(id)) {
+        this.behaviors.delete(id);
+      }
+    }
+  }
+
+  private setGuardPatrolBehavior(person: Person, basePath: Point[]) {
+    const guardPath = basePath.map((p) => p.clone());
+    this.behaviors.set(person.getId(), { kind: 'patrol', basePath: guardPath });
+
+    let reverse = false;
+    const assignNext = () => {
+      const nextPath = reverse ? [...guardPath].reverse() : guardPath;
+      reverse = !reverse;
+      person.setPath(nextPath);
+    };
+
+    person.setOnFinished(() => {
+      assignNext();
+      return true;
+    });
+  }
+
+  private setEnteringBehavior(person: Person, building: BuildingState, path: Point[]) {
+    this.behaviors.set(person.getId(), {
+      kind: 'entering',
+      targetInstanceId: building.instanceId,
+    });
+
+    person.setPath(path, () => {
+      const target = this.buildingManager
+        .getBuildings()
+        .find((b) => b.state.instanceId === building.instanceId);
+
+      if (target) {
+        target.addOccupant(person.role, person.getProfile());
+      }
+
+      this.lastTileKey.delete(person);
+      if (this.onPersonRemoved) {
+        this.onPersonRemoved(person.getId());
+      }
+      person.destroy();
+    });
+  }
+
   public getPeopleCountByRole(): Record<PersonRole, number> {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
     return this.people.reduce(
       (acc, person) => {
         acc[person.role] += 1;
@@ -319,6 +375,7 @@ export class PeopleManager {
 
   public getWorkersByJob(): Record<string, number> {
     this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
     return this.people.reduce<Record<string, number>>((acc, person) => {
       if (person.role !== 'staff') return acc;
       const profile = person.getProfile();
@@ -328,5 +385,121 @@ export class PeopleManager {
       }
       return acc;
     }, {});
+  }
+
+  public snapshot(): PersistedPeopleState {
+    this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
+
+    return {
+      elapsedSinceSpawn: this.elapsedSinceSpawn,
+      spawnIntervalMultiplier: this.spawnIntervalMultiplier,
+      persons: this.people.map((person) => this.serializePerson(person)),
+    };
+  }
+
+  private serializePerson(person: Person): PersistedPersonState {
+    const pathState = person.getPathState();
+    const behavior = this.behaviors.get(person.getId()) ?? { kind: 'wander' };
+
+    return {
+      id: person.getId(),
+      role: person.role,
+      profile: person.getProfile(),
+      path: this.persistPath(pathState.path),
+      segmentIndex: pathState.segmentIndex,
+      segmentProgress: pathState.segmentProgress,
+      paused: pathState.paused,
+      behavior:
+        behavior.kind === 'patrol'
+          ? {
+              kind: 'patrol',
+              basePath: this.persistPath(behavior.basePath),
+            }
+          : behavior.kind === 'entering'
+            ? { kind: 'entering', targetInstanceId: behavior.targetInstanceId }
+            : { kind: 'wander' },
+    };
+  }
+
+  private persistPath(points: Point[]) {
+    return points.map((p) => ({ x: p.x, y: p.y }));
+  }
+
+  public hydrate(snapshot: PersistedPeopleState | undefined) {
+    this.resetPeople();
+
+    if (!snapshot) {
+      return;
+    }
+
+    this.elapsedSinceSpawn = snapshot.elapsedSinceSpawn ?? 0;
+    this.spawnIntervalMultiplier = snapshot.spawnIntervalMultiplier ?? 1;
+
+    (snapshot.persons ?? []).forEach((personState) => {
+      const pathPoints = personState.path.map((node) => new Point(node.x, node.y));
+
+      const person = new Person(
+        this.app,
+        pathPoints,
+        personState.role,
+        personState.profile,
+        this.spriteResolver,
+        {
+          onSelected: () => {
+            if (this.onPersonSelected) {
+              this.onPersonSelected({
+                id: person.getId(),
+                role: person.role,
+                profile: person.getProfile(),
+              });
+            }
+          },
+          id: personState.id,
+        }
+      );
+
+      this.world.addChild(person);
+      this.people.push(person);
+
+      this.restoreBehavior(person, personState, pathPoints);
+
+      person.restorePathState({
+        path: pathPoints,
+        segmentIndex: personState.segmentIndex,
+        segmentProgress: personState.segmentProgress,
+        paused: personState.paused,
+      });
+    });
+  }
+
+  private restoreBehavior(
+    person: Person,
+    personState: PersistedPersonState,
+    pathPoints: Point[]
+  ) {
+    if (personState.behavior.kind === 'patrol') {
+      const basePath = personState.behavior.basePath.map(
+        (node) => new Point(node.x, node.y)
+      );
+      this.setGuardPatrolBehavior(person, basePath);
+      return;
+    }
+
+    if (personState.behavior.kind === 'entering') {
+      const targetBuilding = this.buildingManager
+        .getBuildings()
+        .find((b) => b.state.instanceId === personState.behavior.targetInstanceId);
+
+      if (targetBuilding) {
+        this.setEnteringBehavior(person, targetBuilding.state, pathPoints);
+      } else {
+        this.behaviors.set(person.getId(), { kind: 'wander' });
+      }
+
+      return;
+    }
+
+    this.behaviors.set(person.getId(), { kind: 'wander' });
   }
 }

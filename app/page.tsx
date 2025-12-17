@@ -8,6 +8,15 @@ import { Game, GameUIState } from '@/pixi/Game';
 import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
+import {
+  clearGameSave,
+  getSaveVersion,
+  loadGameSave,
+  persistGameSave,
+  readSavedMetadata,
+} from '@/pixi/data/save-storage';
+import { ASSET_PACK_PREVIEWS } from '@/pixi/assets/packs';
+import { SavedGameMetadata } from '@/types/save';
 import React, {
   useCallback,
   useEffect,
@@ -72,6 +81,7 @@ const Home: React.FC = () => {
       expansionsPurchased: 0,
       maxSize: 0,
     },
+    activeAssetPacks: [],
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -81,6 +91,10 @@ const Home: React.FC = () => {
   const [isTopBarCollapsed, setIsTopBarCollapsed] = useState(false);
   const [isBottomBarCollapsed, setIsBottomBarCollapsed] = useState(false);
   const [isZonePanelCollapsed, setIsZonePanelCollapsed] = useState(false);
+  const [saveMetadata, setSaveMetadata] = useState<SavedGameMetadata | null>(() =>
+    readSavedMetadata()
+  );
+  const [availableAssetPacks] = useState(ASSET_PACK_PREVIEWS);
   const dragStateRef = useRef<
     | {
         startX: number;
@@ -114,6 +128,35 @@ const Home: React.FC = () => {
     gameRef.current?.expandBuildZone();
   }, []);
 
+  const refreshSaveMetadata = useCallback(() => {
+    setSaveMetadata(readSavedMetadata());
+  }, []);
+
+  const handleSaveGame = useCallback(async () => {
+    if (!gameRef.current) return;
+    await gameRef.current.whenReady();
+    persistGameSave(gameRef.current.getSavePayload());
+    refreshSaveMetadata();
+  }, [refreshSaveMetadata]);
+
+  const handleLoadGame = useCallback(async () => {
+    if (!gameRef.current) return;
+    const save = loadGameSave();
+    if (!save) return;
+    await gameRef.current.loadFromSave(save);
+    refreshSaveMetadata();
+  }, [refreshSaveMetadata]);
+
+  const handleClearSave = useCallback(() => {
+    clearGameSave();
+    refreshSaveMetadata();
+  }, [refreshSaveMetadata]);
+
+  const handleUpdateAssetPacks = useCallback(async (packIds: string[]) => {
+    if (!gameRef.current) return;
+    await gameRef.current.applyAssetPacks(packIds);
+  }, []);
+
   useEffect(() => {
     if (gameContainerRef.current && !gameRef.current) {
       gameRef.current = new Game(
@@ -129,6 +172,22 @@ const Home: React.FC = () => {
       }
     };
   }, [handleStateChange]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!gameRef.current) return;
+      await gameRef.current.whenReady();
+      const saved = loadGameSave();
+      if (saved && !cancelled) {
+        await gameRef.current.loadFromSave(saved);
+        setSaveMetadata(readSavedMetadata());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSelectBuildingToBuild = (
     type: BuildingType | null
@@ -696,6 +755,14 @@ const Home: React.FC = () => {
         onHireWorker={handleHireWorker}
         economy={gameState.economy}
         districts={gameState.districts}
+        onSaveGame={handleSaveGame}
+        onLoadGame={handleLoadGame}
+        onClearSave={handleClearSave}
+        saveMetadata={saveMetadata}
+        saveVersion={getSaveVersion()}
+        availableAssetPacks={availableAssetPacks}
+        activeAssetPacks={gameState.activeAssetPacks}
+        onUpdateAssetPacks={handleUpdateAssetPacks}
       />
     </div>
   );

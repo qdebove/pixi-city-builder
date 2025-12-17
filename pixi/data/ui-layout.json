@@ -33,6 +33,18 @@
       "label": "Économie",
       "description": "Charges, taxes et districts thématiques",
       "layout": "vertical"
+    },
+    {
+      "id": "saves",
+      "label": "Sauvegardes",
+      "description": "Snapshots locaux et reprise intégrale",
+      "layout": "vertical"
+    },
+    {
+      "id": "mods",
+      "label": "Packs visuels",
+      "description": "Activer un thème graphique alternatif",
+      "layout": "vertical"
     }
   ],
   "skillPanels": [

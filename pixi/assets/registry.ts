@@ -2,6 +2,7 @@ import {
   AssetRegistry,
   VisualKind,
 } from '../types/data-contract';
+import { ASSET_PACKS } from './packs';
 
 const circleSvg = (fill: string, stroke: string): string => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="22" fill="${fill}" stroke="${stroke}" stroke-width="4" /></svg>`;
@@ -139,6 +140,8 @@ export const BASE_ASSET_REGISTRY: AssetRegistry = {
     ...iconAssets,
     ...effectAssets,
   },
+  packs: ASSET_PACKS,
+  activePackIds: [],
   rules: {
     visitor_map_move: {
       id: 'visitor_map_move',
@@ -258,4 +261,3 @@ export const BASE_ASSET_REGISTRY: AssetRegistry = {
     },
   },
 };
-

@@ -44,6 +44,7 @@ export class Building extends Container {
       currentOccupants: 0,
       occupants: { visitor: 0, staff: 0 },
       productionIntervalMs: type.baseIntervalMs || 2000, // ✅ propre à chaque type
+      incomeProgressMs: 0,
     };
 
     this.position.set(
@@ -110,7 +111,9 @@ export class Building extends Container {
       staffCapacity > 0 ? Math.min(1, staffCount / staffCapacity) : 0;
     const staffBoost = 1 + staffRatio * this.type.staffEfficiency;
 
-    return (1 + visitorRatio) * staffBoost;
+    const baseline = this.type.category === 'housing' ? 0 : 1;
+
+    return (baseline + visitorRatio) * staffBoost;
   }
 
   private drawVisual() {
@@ -157,12 +160,52 @@ export class Building extends Container {
       );
     }
 
+    if (newState.incomeProgressMs !== undefined) {
+      this.incomeProgressMs = Math.max(
+        0,
+        Math.min(newState.incomeProgressMs, Math.max(this.state.productionIntervalMs, 0))
+      );
+    }
+
     this.drawVisual();
   }
 
   public setDistrict(districtId: string | undefined) {
     this.districtId = districtId;
     this.state.districtId = districtId;
+  }
+
+  public hydrate(payload: {
+    state: BuildingState;
+    staffProfiles?: Worker[];
+    visitorProfiles?: Visitor[];
+  }) {
+    const staffProfiles = [...(payload.staffProfiles ?? [])];
+    const visitorProfiles = [...(payload.visitorProfiles ?? [])];
+    const staffCount = staffProfiles.length;
+    const visitorCount = Math.max(
+      payload.state.occupants.visitor ?? visitorProfiles.length,
+      visitorProfiles.length
+    );
+
+    this.state = {
+      ...payload.state,
+      occupants: {
+        visitor: visitorCount,
+        staff: staffCount,
+      },
+      currentOccupants: this.computeTotalOccupants({
+        visitor: visitorCount,
+        staff: staffCount,
+      }),
+    };
+    this.districtId = payload.state.districtId;
+    this.staffMembers = staffProfiles;
+    this.visitors = visitorProfiles.slice(0, visitorCount);
+    const interval = Math.max(payload.state.productionIntervalMs, 0);
+    const savedProgress = Math.max(0, payload.state.incomeProgressMs ?? 0);
+    this.incomeProgressMs = Math.min(savedProgress, interval);
+    this.drawVisual();
   }
 
   public setSelected(isSelected: boolean) {
@@ -293,6 +336,10 @@ export class Building extends Container {
     }
 
     return completedCycles;
+  }
+
+  public getIncomeProgressMs(): number {
+    return this.incomeProgressMs;
   }
 
   public destroy(options?: boolean | IDestroyOptions) {

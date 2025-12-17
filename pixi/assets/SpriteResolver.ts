@@ -12,6 +12,16 @@ export class SpriteResolver {
 
   constructor(private readonly registry: AssetRegistry) {}
 
+  public setActivePacks(packIds: string[]) {
+    if (!this.registry.packs) {
+      this.registry.activePackIds = [];
+      return;
+    }
+    const valid = packIds.filter((id) => Boolean(this.registry.packs?.[id]));
+    this.registry.activePackIds = valid;
+    this.cache.clear();
+  }
+
   public resolve(request: SpriteResolveRequest): ResolvedSprite | null {
     const cacheKey = this.buildCacheKey(request);
     if (this.cache.has(cacheKey)) {
@@ -257,4 +267,3 @@ const hashString = (value: string): number => {
   }
   return hash;
 };
-

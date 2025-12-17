@@ -63,4 +63,14 @@ export class SimulationClock {
     this.currentTick = 0;
     this.nowMs = 0;
   }
+
+  public snapshotState() {
+    return { tick: this.currentTick, nowMs: this.nowMs };
+  }
+
+  public hydrate(state: { tick: number; nowMs: number }) {
+    this.currentTick = Math.max(0, state.tick);
+    this.nowMs = Math.max(0, state.nowMs);
+    this.accumulatedMs = 0;
+  }
 }
