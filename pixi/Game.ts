@@ -19,6 +19,7 @@ import { BuildingManager } from './BuildingManager';
 import { FloatingText } from './FloatingText';
 import { PeopleManager } from './PeopleManager';
 import { ReputationSnapshot, ReputationSystem } from './ReputationSystem';
+import { AttractionSnapshot, AttractionSystem } from './AttractionSystem';
 import { WorldView } from './WorldView';
 import { SimulationClock, TickContext } from './SimulationClock';
 import { SpriteResolver } from './assets/SpriteResolver';
@@ -78,6 +79,7 @@ export interface GameUIState {
   districts: DistrictSnapshot;
   buildZone: BuildZoneSnapshot;
   activeAssetPacks: string[];
+  attraction: AttractionSnapshot;
 }
 
 export class Game {
@@ -93,12 +95,15 @@ export class Game {
   private buildZoneSystem: BuildZoneSystem;
   private spriteResolver: SpriteResolver;
   private reputationSystem: ReputationSystem;
+  private attractionSystem: AttractionSystem;
+  private attractionSnapshot: AttractionSnapshot;
   private skillEngine: SkillEngine;
   private eventSystem: EventSystem;
   private securitySystem: SecuritySystem;
   private securitySnapshot: SecuritySnapshot;
   private guardPresence = { roaming: 0, stationed: 0 };
   private hiredWorkerIds = new Set<string>();
+  private lastReputationBroadcast: ReputationSnapshot | null = null;
 
   private money: number = 1000;
   private totalClicks: number = 0;
@@ -137,6 +142,8 @@ export class Game {
     };
     this.spriteResolver = new SpriteResolver(this.assetRegistry);
     this.reputationSystem = new ReputationSystem();
+    this.attractionSystem = new AttractionSystem();
+    this.attractionSnapshot = this.attractionSystem.snapshotState();
     this.skillEngine = new SkillEngine();
     this.eventSystem = new EventSystem();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
@@ -192,12 +199,14 @@ export class Game {
       this.onPersonSelected,
       this.onPersonRemoved
     );
+    this.peopleManager.setBaseInflux(this.attractionSnapshot.influxPerMinute);
 
     this.syncPeoplePool();
 
     this.districtSystem.generateZones();
     this.drawDistricts();
     this.drawBuildZone();
+    this.recomputeAttraction();
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
@@ -386,6 +395,7 @@ export class Game {
     });
 
     this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
+    this.recomputeAttraction();
 
     const debtEvents = this.buildDebtEvents(this.timeSystem.snapshotState());
     this.activeEvents = [...eventModifiers.activeEvents, ...debtEvents];
@@ -808,6 +818,89 @@ export class Game {
     return { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole };
   }
 
+  private computeVisitorSentiment() {
+    const active = this.peopleManager.getVisitorSatisfaction();
+    const settledVisitors = this.buildingManager
+      .getBuildings()
+      .flatMap((building) => building.getVisitors());
+
+    const settledTotal = settledVisitors.reduce(
+      (sum, visitor) => sum + (visitor.satisfaction ?? 0.5),
+      0
+    );
+
+    const totalSamples = active.count + settledVisitors.length;
+    if (totalSamples === 0) {
+      return { average: 0.5, samples: 0 };
+    }
+
+    const weightedAverage =
+      (active.average * active.count + settledTotal) / totalSamples;
+
+    return { average: weightedAverage, samples: totalSamples };
+  }
+
+  private computeVisitorSaturation() {
+    const aggregated = this.buildingManager
+      .getBuildings()
+      .filter((b) => !b.type.isRoad && b.type.capacity > 0)
+      .reduce(
+        (acc, building) => {
+          acc.capacity += building.getCapacityForRole('visitor');
+          acc.occupants += building.getOccupantsByRole().visitor ?? 0;
+          return acc;
+        },
+        { capacity: 0, occupants: 0 }
+      );
+
+    if (aggregated.capacity <= 0) {
+      return { ratio: 0, capacity: 0, occupants: 0 };
+    }
+
+    const ratio = Math.min(1, aggregated.occupants / aggregated.capacity);
+    return { ratio, capacity: aggregated.capacity, occupants: aggregated.occupants };
+  }
+
+  private broadcastReputationChange(reputation: ReputationSnapshot) {
+    if (typeof window === 'undefined') return;
+
+    if (this.lastReputationBroadcast) {
+      const deltaLocal = Math.abs(this.lastReputationBroadcast.local - reputation.local);
+      const deltaPremium = Math.abs(
+        this.lastReputationBroadcast.premium - reputation.premium
+      );
+      const deltaRegulation = Math.abs(
+        this.lastReputationBroadcast.regulatoryPressure - reputation.regulatoryPressure
+      );
+      if (deltaLocal < 0.05 && deltaPremium < 0.05 && deltaRegulation < 0.05) {
+        return;
+      }
+    }
+
+    this.lastReputationBroadcast = { ...reputation };
+    window.dispatchEvent(
+      new CustomEvent('reputation-changed', {
+        detail: {
+          reputation: { ...reputation },
+          notoriety: this.attractionSnapshot.notoriety,
+          timestamp: Date.now(),
+        },
+      })
+    );
+  }
+
+  private recomputeAttraction() {
+    const visitorSentiment = this.computeVisitorSentiment();
+    const visitorSaturation = this.computeVisitorSaturation();
+    const reputationSnapshot = this.reputationSystem.snapshot();
+    this.attractionSnapshot = this.attractionSystem.update({
+      reputation: reputationSnapshot,
+      averageSatisfaction: visitorSentiment.average,
+      saturationRatio: visitorSaturation.ratio,
+    });
+    this.peopleManager.setBaseInflux(this.attractionSnapshot.influxPerMinute);
+  }
+
   private getHiredWorkerTemplates(): Worker[] {
     return Array.from(this.hiredWorkerIds.values())
       .map((id) => WORKER_ROSTER.find((w) => w.id === id))
@@ -817,6 +910,7 @@ export class Game {
   private emitState() {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
+    const reputation = this.reputationSystem.snapshot();
 
     const hiredByJob = Array.from(this.hiredWorkerIds.values()).reduce(
       (acc, id) => {
@@ -835,6 +929,7 @@ export class Game {
       this.buildingManager.getBuildings()
     );
     const buildZone = this.buildZoneSystem.snapshot();
+    this.broadcastReputationChange(reputation);
 
     this.onStateChange({
       money: this.money,
@@ -851,7 +946,7 @@ export class Game {
       occupantsByType,
       peopleByRole,
       occupantsByRole,
-      reputation: this.reputationSystem.snapshot(),
+      reputation,
       zoom: this.worldView.getScale(),
       activeEvents: this.activeEvents,
       time: this.timeSystem.snapshotState(),
@@ -864,6 +959,7 @@ export class Game {
       districts,
       buildZone,
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
+      attraction: this.attractionSnapshot,
     });
   }
 
@@ -933,6 +1029,7 @@ export class Game {
     this.buildingManager.hydrateBuildings(save.buildings, workerCatalog);
     this.peopleManager.hydrate(save.people);
 
+    this.recomputeAttraction();
     this.recomputeGuardPresence();
     this.selectedBuilding = null;
     this.selectedPerson = null;

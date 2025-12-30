@@ -4,7 +4,9 @@ import { BuildingSidebar } from '@/components/BuildingSidebar';
 import { EventTicker } from '@/components/EventTicker';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
+import { ReputationPanel } from '@/components/ReputationPanel';
 import { Game, GameUIState } from '@/pixi/Game';
+import { AttractionSystem } from '@/pixi/AttractionSystem';
 import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
@@ -29,66 +31,70 @@ const Home: React.FC = () => {
   const gameRef = useRef<Game | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  const [gameState, setGameState] = useState<GameUIState>({
-    money: 1000,
-    totalClicks: 0,
-    selectedBuildingState: null,
-    selectedBuildingComputed: null,
-    selectedPerson: null,
-    isPaused: false,
-    movingPeopleCount: 0,
-    occupantsByType: {},
-    peopleByRole: { visitor: 0, staff: 0 },
-    occupantsByRole: { visitor: 0, staff: 0 },
-    reputation: {
-      local: 50,
-      premium: 50,
-      regulatoryPressure: 0,
-    },
-    zoom: 1,
-    activeEvents: [],
-    time: {
-      hour: 0,
-      day: TIME_SETTINGS.startDay ?? 1,
-      month: TIME_SETTINGS.startMonth ?? 1,
-      year: TIME_SETTINGS.startYear ?? 1,
-      elapsedMs: 0,
-    },
-    debt: {
-      balance: DEBT_SETTINGS.startingBalance,
-      lastPayment: 0,
-      totalPaid: 0,
-      monthIndex: 0,
-      paymentDue: Math.max(
-        DEBT_SETTINGS.minimumPayment,
-        Math.ceil(DEBT_SETTINGS.startingBalance * DEBT_SETTINGS.paymentRatio)
-      ),
-      dueDay: DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30,
-      isPaidForMonth: false,
-      missedPayments: 0,
-    },
-    security: { score: 42, guardCoverage: 0 },
-    guardPresence: { roaming: 0, stationed: 0 },
-    hiredWorkers: [],
-    hiredByJob: {},
-    economy: {
-      dailyMaintenance: 0,
-      dailySalaries: 0,
-      dailyPassiveIncome: 0,
-      lastDailyIncome: 0,
-      lastMonthlyTax: 0,
-      monthIncome: 0,
-      monthExpenses: 0,
-      projectedTax: 0,
-    },
-    districts: { zones: [] },
-    buildZone: {
-      bounds: { x: 0, y: 0, width: 0, height: 0 },
-      nextCost: 0,
-      expansionsPurchased: 0,
-      maxSize: 0,
-    },
-    activeAssetPacks: [],
+  const [gameState, setGameState] = useState<GameUIState>(() => {
+    const attraction = new AttractionSystem().snapshotState();
+    return {
+      money: 1000,
+      totalClicks: 0,
+      selectedBuildingState: null,
+      selectedBuildingComputed: null,
+      selectedPerson: null,
+      isPaused: false,
+      movingPeopleCount: 0,
+      occupantsByType: {},
+      peopleByRole: { visitor: 0, staff: 0 },
+      occupantsByRole: { visitor: 0, staff: 0 },
+      reputation: {
+        local: 50,
+        premium: 50,
+        regulatoryPressure: 0,
+      },
+      zoom: 1,
+      activeEvents: [],
+      time: {
+        hour: 0,
+        day: TIME_SETTINGS.startDay ?? 1,
+        month: TIME_SETTINGS.startMonth ?? 1,
+        year: TIME_SETTINGS.startYear ?? 1,
+        elapsedMs: 0,
+      },
+      debt: {
+        balance: DEBT_SETTINGS.startingBalance,
+        lastPayment: 0,
+        totalPaid: 0,
+        monthIndex: 0,
+        paymentDue: Math.max(
+          DEBT_SETTINGS.minimumPayment,
+          Math.ceil(DEBT_SETTINGS.startingBalance * DEBT_SETTINGS.paymentRatio)
+        ),
+        dueDay: DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30,
+        isPaidForMonth: false,
+        missedPayments: 0,
+      },
+      security: { score: 42, guardCoverage: 0 },
+      guardPresence: { roaming: 0, stationed: 0 },
+      hiredWorkers: [],
+      hiredByJob: {},
+      economy: {
+        dailyMaintenance: 0,
+        dailySalaries: 0,
+        dailyPassiveIncome: 0,
+        lastDailyIncome: 0,
+        lastMonthlyTax: 0,
+        monthIncome: 0,
+        monthExpenses: 0,
+        projectedTax: 0,
+      },
+      districts: { zones: [] },
+      buildZone: {
+        bounds: { x: 0, y: 0, width: 0, height: 0 },
+        nextCost: 0,
+        expansionsPurchased: 0,
+        maxSize: 0,
+      },
+      activeAssetPacks: [],
+      attraction,
+    };
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
@@ -765,6 +771,12 @@ const Home: React.FC = () => {
       )}
 
       <EventTicker events={gameState.activeEvents} />
+      <div className="pointer-events-none fixed right-4 top-[140px] z-30 w-[320px] max-w-full">
+        <ReputationPanel
+          reputation={gameState.reputation}
+          attraction={gameState.attraction}
+        />
+      </div>
 
       {/* Layout principal */}
       <div className="relative flex-1 pt-0">
