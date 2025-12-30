@@ -37,7 +37,7 @@ export class DecisionAI {
     candidates: Building[]
   ): EntryDecision | null {
     const scored = candidates
-      .filter((building) => building.hasCapacityFor('visitor'))
+      .filter((building) => building.canAcceptVisitor())
       .map((building) => ({ building, score: this.scoreVisitorBuilding(visitor, building) }))
       .filter(({ score }) => score > 0);
 
@@ -114,6 +114,11 @@ export class DecisionAI {
 
   private computeOccupancyPenalty(building: Building, role: PersonRole): number {
     const ratio = building.getOccupancyRatioFor(role);
+    if (role === 'visitor' && ratio >= 1) {
+      const queueRatio = building.getQueueRatio();
+      const adjustedQueue = 1 - Math.min(0.9, queueRatio * 1.2);
+      return Math.max(0.05, adjustedQueue);
+    }
     if (ratio <= 0) return 1;
     const adjusted = 1 - Math.min(0.85, ratio * 1.1);
     return Math.max(0.05, adjusted);

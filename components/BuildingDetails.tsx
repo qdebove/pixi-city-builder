@@ -32,6 +32,8 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const visitorCount = state.occupants.visitor || 0;
   const staffCount = state.occupants.staff || 0;
   const staffCapacity = type.staffCapacity;
+  const queueLength = state.queueLength ?? 0;
+  const queueCapacity = type.queueMax ?? 0;
   const accentColor = `#${type.color.toString(16).padStart(6, '0')}`;
   const roadLabel = type.isRoad
     ? 'Infrastructure'
@@ -62,6 +64,18 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
   const dailyPassive = Math.floor(
     (type.dailyPassiveIncome ?? 0) * occupancyMultiplier * Math.max(1, districtMultiplier)
   );
+  const lastServiceSatisfaction =
+    computed?.lastServiceSatisfaction ??
+    state.lastServiceSatisfaction ??
+    0.65;
+  const queueSeverity =
+    queueCapacity > 0 ? Math.min(1, queueLength / queueCapacity) : 0;
+  const queueBadge =
+    queueSeverity < 0.7
+      ? 'bg-emerald-900/40 text-emerald-100 border border-emerald-600/60'
+      : queueSeverity < 1
+      ? 'bg-amber-900/40 text-amber-100 border border-amber-600/60'
+      : 'bg-red-900/50 text-red-100 border border-red-700/70';
 
   const formatSignedAmount = (amount: number) =>
     `${amount >= 0 ? '+' : '-'}${Math.abs(amount)}€ / tick`;
@@ -146,6 +160,19 @@ export const BuildingDetails: React.FC<DetailsProps> = ({
             </span>
           </span>
         </p>
+
+        {queueCapacity > 0 && (
+          <div className="col-span-2 flex flex-wrap gap-2">
+            <span
+              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${queueBadge}`}
+            >
+              File d&apos;attente : {queueLength} / {queueCapacity}
+            </span>
+            <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-semibold text-slate-100">
+              Satisfaction service : {(lastServiceSatisfaction * 100).toFixed(0)}%
+            </span>
+          </div>
+        )}
 
         {/* Prod actuelle + tooltip custom joli */}
         <div className="col-span-2">

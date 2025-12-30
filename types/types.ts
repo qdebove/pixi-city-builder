@@ -10,6 +10,7 @@ export interface BuildingType {
   maxLevel: number;
   baseHealth: number;
   capacity: number;
+  queueMax?: number;
   staffCapacity: number;
   staffEfficiency: number;
   isRoad?: boolean;
@@ -19,6 +20,8 @@ export interface BuildingType {
   height: number;
   requiresRoadAccess?: boolean;
   dailyPassiveIncome?: number;
+  serviceQuality?: number;
+  comfort?: number;
 }
 
 export type PersonRole = 'visitor' | 'staff';
@@ -31,12 +34,17 @@ export interface BuildingState {
   currentOccupants: number;
   occupants: Record<PersonRole, number>;
   productionIntervalMs: number;
+  queueLength: number;
+  lastServiceSatisfaction?: number;
   districtId?: string;
   incomeProgressMs?: number;
 }
 
 export const CELL_SIZE = 64;
 export const GRID_SIZE = 100;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const normalizeDimension = (value: number | undefined): number =>
   Math.max(1, Math.floor(value ?? 1));
@@ -47,6 +55,9 @@ export const BUILDING_TYPES: BuildingType[] = (
   ...type,
   maintenancePerDay: type.maintenancePerDay ?? 0,
   dailyPassiveIncome: type.dailyPassiveIncome ?? 0,
+  queueMax: Math.max(0, Math.floor(type.queueMax ?? 0)),
+  serviceQuality: clamp(type.serviceQuality ?? 0.7, 0, 1.25),
+  comfort: clamp(type.comfort ?? 0.7, 0, 1.25),
   width: normalizeDimension(type.width),
   height: normalizeDimension(type.height),
   requiresRoadAccess: type.requiresRoadAccess ?? !type.isRoad,

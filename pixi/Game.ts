@@ -62,6 +62,9 @@ export interface SelectedBuildingComputed {
   eventMultiplier: number;
   districtName?: string;
   districtIncomeMultiplier?: number;
+  queueLength?: number;
+  queueCapacity?: number;
+  lastServiceSatisfaction?: number;
 }
 
 export interface GameUIState {
@@ -371,17 +374,20 @@ export class Game {
         const baseIncome =
           (skillSnapshot?.incomePerTick ?? building.getIncome()) *
           districtMultiplier;
-        this.selectedBuildingComputed = {
-          incomePerTick: baseIncome,
-          incomeWithEvents: Math.floor(
-            baseIncome * Math.max(0, eventModifiers.incomeMultiplier)
-          ),
-          intervalMs: skillSnapshot?.intervalMs ?? building.getBaseIntervalMs(),
-          eventMultiplier: eventModifiers.incomeMultiplier,
-          districtName: districtZone?.name,
-          districtIncomeMultiplier: districtMultiplier,
-        };
-      }
+          this.selectedBuildingComputed = {
+            incomePerTick: baseIncome,
+            incomeWithEvents: Math.floor(
+              baseIncome * Math.max(0, eventModifiers.incomeMultiplier)
+            ),
+            intervalMs: skillSnapshot?.intervalMs ?? building.getBaseIntervalMs(),
+            eventMultiplier: eventModifiers.incomeMultiplier,
+            districtName: districtZone?.name,
+            districtIncomeMultiplier: districtMultiplier,
+            queueLength: building.getQueueLength(),
+            queueCapacity: building.getQueueCapacity(),
+            lastServiceSatisfaction: building.getLastServiceSatisfaction(),
+          };
+        }
 
       for (let i = 0; i < completedCycles; i++) {
         this.harvestBuilding(
@@ -390,6 +396,7 @@ export class Game {
           eventModifiers.incomeMultiplier,
           districtMultiplier
         );
+        building.completeServiceCycle();
       }
     });
 

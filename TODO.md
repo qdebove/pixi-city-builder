@@ -53,7 +53,7 @@
 
 #### 🟨 P1 – Profondeur & lisibilité
 
-* **[ID-005] Capacités bâtiments & files**
+* [x] **[ID-005] Capacités bâtiments & files**
   * Capacité max, file d’attente, taux de satisfaction par bâtiment de plaisir
   * Affluence non gérée, frustration invisible
   * Bâtiments, personnes, UI bâtiment
