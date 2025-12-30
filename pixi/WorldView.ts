@@ -215,6 +215,12 @@ export class WorldView {
     return this.world.scale.x;
   }
 
+  public focusOn(point: Point) {
+    this.world.x = this.app.screen.width / 2 - point.x * this.world.scale.x;
+    this.world.y = this.app.screen.height / 2 - point.y * this.world.scale.y;
+    this.clampWorldPosition();
+  }
+
   public setPanBounds(bounds: {
     x: number;
     y: number;

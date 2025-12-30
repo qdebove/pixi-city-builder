@@ -3,6 +3,7 @@ import { BuildingDetails } from '@/components/BuildingDetails';
 import { BuildingSidebar } from '@/components/BuildingSidebar';
 import { EventTicker } from '@/components/EventTicker';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
+import { NotificationCenter } from '@/components/NotificationCenter';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { ReputationPanel } from '@/components/ReputationPanel';
 import { BuildingPlacementPreview } from '@/components/BuildingPlacementPreview';
@@ -22,6 +23,7 @@ import { ASSET_PACK_PREVIEWS } from '@/pixi/assets/packs';
 import { SavedGameMetadata } from '@/types/save';
 import { WorkerShiftAssignment } from '@/types/data-contract';
 import { WorkerPlanningPanel } from '@/components/WorkerPlanningPanel';
+import { GameNotification } from '@/types/ui';
 import React, {
   useCallback,
   useEffect,
@@ -99,6 +101,7 @@ const Home: React.FC = () => {
       activeAssetPacks: [],
       attraction,
       workerSchedules: [],
+      notifications: [],
     };
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
@@ -287,6 +290,38 @@ const Home: React.FC = () => {
     `${formatMoney(gameState.debt.balance)} restantes`;
 
   const handleClosePerson = () => gameRef.current?.deselectPerson();
+
+  const handleNotificationAction = useCallback(
+    (notification: GameNotification) => {
+      if (!notification.action) return;
+
+      switch (notification.action.type) {
+        case 'focus-building':
+          gameRef.current?.focusBuilding(notification.action.buildingId);
+          break;
+        case 'show-debt':
+          setIsTopBarCollapsed(false);
+          document
+            .getElementById('debt-card')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        case 'show-satisfaction':
+          setIsTopBarCollapsed(false);
+          setIsMenuOpen(true);
+          setMenuTab('people');
+          break;
+        default:
+          break;
+      }
+
+      gameRef.current?.acknowledgeNotification(notification.id);
+    },
+    [setIsMenuOpen, setIsTopBarCollapsed, setMenuTab]
+  );
+
+  const handleNotificationDismiss = useCallback((id: string) => {
+    gameRef.current?.acknowledgeNotification(id);
+  }, []);
 
   const selectionContent = gameState.selectedPerson ? (
     <PersonDetailsPanel person={gameState.selectedPerson} />
@@ -683,7 +718,10 @@ const Home: React.FC = () => {
                   {gameState.time.hour.toString().padStart(2, '0')}:00 • Année {gameState.time.year}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
+              <div
+                id="debt-card"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] uppercase text-slate-400">Dette mensuelle</p>
@@ -808,6 +846,11 @@ const Home: React.FC = () => {
         </div>
       )}
 
+      <NotificationCenter
+        notifications={gameState.notifications}
+        onAction={handleNotificationAction}
+        onDismiss={handleNotificationDismiss}
+      />
       <EventTicker events={gameState.activeEvents} />
       <div className="pointer-events-none fixed right-4 top-[140px] z-30 w-[320px] max-w-full">
         <ReputationPanel
