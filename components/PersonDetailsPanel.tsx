@@ -56,6 +56,37 @@ const StatTile: React.FC<{ label: string; value: React.ReactNode }> = ({
   </div>
 );
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const NeedGauge: React.FC<{
+  label: string;
+  value: number;
+  accent: 'sky' | 'amber' | 'emerald';
+  helper?: string;
+}> = ({ label, value, accent, helper }) => {
+  const percent = Math.round(clamp01(value) * 100);
+  const colors: Record<typeof accent, string> = {
+    sky: 'from-sky-400 to-sky-500',
+    amber: 'from-amber-400 to-amber-500',
+    emerald: 'from-emerald-400 to-emerald-500',
+  };
+  return (
+    <div className="space-y-1 rounded-lg border border-slate-700/70 bg-slate-800/70 p-2">
+      <div className="flex items-center justify-between text-[11px] text-slate-300">
+        <span className="font-semibold text-slate-100">{label}</span>
+        <span className="font-mono text-slate-200">{percent}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-900">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${colors[accent]}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {helper && <p className="text-[11px] text-slate-400">{helper}</p>}
+    </div>
+  );
+};
+
 export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = ({
   person,
 }) => {
@@ -105,6 +136,30 @@ export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = 
   }, [profile, skillTreeId]);
 
   const traits = isWorker(profile) ? profile.traits : [];
+  const visitorLevel = !isWorker(profile) ? profile.level ?? 1 : 0;
+  const visitorXpProgress =
+    !isWorker(profile) && profile.experienceToNext
+      ? clamp01(profile.experience / profile.experienceToNext)
+      : 0;
+
+  const budgetBadge =
+    !isWorker(profile) && profile.budget < 400
+      ? { label: 'Budget faible', tone: 'bg-amber-900/40 text-amber-100' }
+      : !isWorker(profile) && profile.budget < 650
+        ? { label: 'Budget moyen', tone: 'bg-emerald-900/40 text-emerald-100' }
+        : !isWorker(profile)
+          ? { label: 'Budget haut', tone: 'bg-sky-900/40 text-sky-100' }
+          : null;
+
+  const visitorFocus =
+    !isWorker(profile) &&
+    [
+      { label: 'Plaisir premium', score: profile.preferences.luxury },
+      { label: 'Variété', score: profile.preferences.variety },
+      { label: 'Discrétion', score: profile.preferences.discretion },
+    ]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
 
   const baseCard = (
     <div className="space-y-3">
@@ -130,6 +185,64 @@ export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = 
         </div>
       </div>
 
+      {!isWorker(profile) && (
+        <div className="space-y-2 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] uppercase text-slate-400">Besoins & désirs</p>
+              <p className="text-sm font-semibold text-white">
+                Cherche :{' '}
+                {visitorFocus?.map((focus) => focus.label).join(' • ') || 'profil neutre'}
+              </p>
+            </div>
+            {budgetBadge && (
+              <span
+                className={`rounded-full px-3 py-1 text-[11px] font-semibold ${budgetBadge.tone}`}
+              >
+                {budgetBadge.label}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <NeedGauge
+              label="Repos"
+              value={1 - clamp01(profile.fatigue)}
+              accent="sky"
+              helper="Plus la barre est haute, plus le visiteur est reposé."
+            />
+            <NeedGauge
+              label="Satisfaction"
+              value={clamp01(profile.satisfaction)}
+              accent="emerald"
+              helper="Influence le temps de séjour et la dépense."
+            />
+            <NeedGauge
+              label="Envie premium"
+              value={clamp01(profile.preferences.luxury * 0.7 + profile.preferences.discretion * 0.3)}
+              accent="amber"
+              helper="Appétit pour les services haut de gamme."
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-slate-800/70 bg-slate-900/70 px-3 py-2 text-[12px] text-slate-200">
+            <div>
+              <p className="text-[11px] uppercase text-slate-400">Budget</p>
+              <p className="font-semibold text-white">{profile.budget} crédits</p>
+              <p className="text-[11px] text-slate-400">Sensibilité prix : {profile.preferences.priceSensitivity.toFixed(2)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] uppercase text-slate-400">Niveau</p>
+              <p className="text-xl font-bold text-sky-200">Niv {visitorLevel}</p>
+              <div className="mt-1 h-2 w-28 rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-400"
+                  style={{ width: `${visitorXpProgress * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         {isWorker(profile) ? (
           <>
@@ -148,8 +261,8 @@ export const PersonDetailsPanel: React.FC<{ person: SelectedPersonSnapshot }> = 
           </>
         ) : (
           <>
-            <StatTile label="Budget" value={`${profile.budget}€`} />
             <StatTile label="Patience" value={profile.patience.toFixed(2)} />
+            <StatTile label="Fatigue" value={profile.fatigue.toFixed(2)} />
             <StatTile label="Satisfaction" value={profile.satisfaction.toFixed(2)} />
             <StatTile
               label="Préférences"

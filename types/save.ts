@@ -54,6 +54,7 @@ export interface PersistedPersonState {
 export interface PersistedPeopleState {
   elapsedSinceSpawn: number;
   spawnIntervalMultiplier: number;
+  baseSpawnRatePerMinute?: number;
   persons: PersistedPersonState[];
 }
 

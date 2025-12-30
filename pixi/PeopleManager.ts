@@ -11,6 +11,7 @@ import { DecisionAI, EntryDecision } from './decision/DecisionAI';
 import { Visitor, Worker } from '@/types/data-contract';
 import { BuildingState } from '@/types/types';
 import { PersistedPeopleState, PersistedPersonState } from '@/types/save';
+import { ATTRACTION_SETTINGS } from './data/attraction-settings';
 
 type PersonBehavior =
   | { kind: 'wander' }
@@ -32,6 +33,7 @@ export class PeopleManager {
   private elapsedSinceSpawn = 0;
   private readonly baseSpawnIntervalMs = 4000;
   private spawnIntervalMultiplier = 1;
+  private baseSpawnRatePerMinute = ATTRACTION_SETTINGS.basePerMinute;
 
   private lastTileKey = new Map<Person, string>();
   private behaviors = new Map<string, PersonBehavior>();
@@ -106,6 +108,11 @@ export class PeopleManager {
   public setSpawnIntervalMultiplier(multiplier: number): void {
     const safeMultiplier = Math.max(0.25, Math.min(multiplier, 4));
     this.spawnIntervalMultiplier = safeMultiplier;
+  }
+
+  public setBaseInflux(perMinute: number) {
+    const safeRate = Math.max(0, Math.min(perMinute, 120));
+    this.baseSpawnRatePerMinute = safeRate;
   }
 
   public setAvailableWorkers(workers: Worker[]) {
@@ -294,8 +301,13 @@ export class PeopleManager {
   }
 
   private getCurrentSpawnInterval(): number {
-    const interval = this.baseSpawnIntervalMs * this.spawnIntervalMultiplier;
-    return Math.max(800, interval);
+    const effectiveRate = Math.max(
+      0.001,
+      this.baseSpawnRatePerMinute * this.spawnIntervalMultiplier
+    );
+    const intervalFromRate = 60000 / effectiveRate;
+    const interval = Math.min(intervalFromRate, this.baseSpawnIntervalMs * 6);
+    return Math.max(500, interval);
   }
 
   private pickStaffDecision(
@@ -387,6 +399,23 @@ export class PeopleManager {
     }, {});
   }
 
+  public getVisitorSatisfaction(): { average: number; count: number } {
+    this.people = this.people.filter((p) => !p.destroyed);
+    this.cleanupBehaviors();
+
+    const visitors = this.people.filter((person) => person.role === 'visitor');
+    if (visitors.length === 0) {
+      return { average: 0.5, count: 0 };
+    }
+
+    const total = visitors.reduce((sum, visitor) => {
+      const profile = visitor.getProfile();
+      return sum + ('satisfaction' in profile ? profile.satisfaction : 0.5);
+    }, 0);
+
+    return { average: total / visitors.length, count: visitors.length };
+  }
+
   public snapshot(): PersistedPeopleState {
     this.people = this.people.filter((p) => !p.destroyed);
     this.cleanupBehaviors();
@@ -394,6 +423,7 @@ export class PeopleManager {
     return {
       elapsedSinceSpawn: this.elapsedSinceSpawn,
       spawnIntervalMultiplier: this.spawnIntervalMultiplier,
+      baseSpawnRatePerMinute: this.baseSpawnRatePerMinute,
       persons: this.people.map((person) => this.serializePerson(person)),
     };
   }
@@ -435,6 +465,8 @@ export class PeopleManager {
 
     this.elapsedSinceSpawn = snapshot.elapsedSinceSpawn ?? 0;
     this.spawnIntervalMultiplier = snapshot.spawnIntervalMultiplier ?? 1;
+    this.baseSpawnRatePerMinute =
+      snapshot.baseSpawnRatePerMinute ?? ATTRACTION_SETTINGS.basePerMinute;
 
     (snapshot.persons ?? []).forEach((personState) => {
       const pathPoints = personState.path.map((node) => new Point(node.x, node.y));

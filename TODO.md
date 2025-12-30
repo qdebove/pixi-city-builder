@@ -35,12 +35,12 @@
   * Manque de visibilité sur état financier et pression temporelle
   * UI HUD, système temps, finances
   * Le joueur sait en un coup d’œil s’il peut investir et quand payer
-* **[ID-002] Panneau notoriété & influx**
+* [x] **[ID-002] Panneau notoriété & influx**
   * Indicateur de notoriété et taux d’arrivée des personnes
   * Manque de lien visible entre réputation et fréquentation
   * Simulation attraction, UI statistiques
   * Le joueur comprend comment attirer plus de visiteurs
-* **[ID-003] Besoins/désirs visiteurs + capacité financière**
+* [x] **[ID-003] Besoins/désirs visiteurs + capacité financière**
   * Fiche visiteur avec jauges besoins/désirs, budget et passif/niveau
   * Aucune info pour choisir l’offre adaptée
   * Personnes, UI inspection
