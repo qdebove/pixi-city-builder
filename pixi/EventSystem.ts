@@ -2,6 +2,7 @@ import { DynamicEventDefinition, EventEffect } from '@/types/events';
 import { ReputationSnapshot } from './ReputationSystem';
 import { TickContext } from './SimulationClock';
 import { getEventDefinitions } from './data/events';
+import { EventSystemSave } from '@/types/save';
 
 export interface ActiveEventSnapshot {
   id: string;
@@ -147,5 +148,38 @@ export class EventSystem {
     const window = this.maxIntervalMs - this.minIntervalMs;
     const offset = Math.random() * window;
     return nowMs + this.minIntervalMs + offset;
+  }
+
+  public snapshot(): EventSystemSave {
+    return {
+      active: this.activeEvents.map(({ definition, remainingMs, instanceId }) => ({
+        id: definition.id,
+        instanceId,
+        title: definition.title,
+        description: definition.description,
+        remainingMs,
+        durationMs: definition.durationMs,
+        severity: definition.severity,
+        effects: definition.effects,
+      })),
+      nextEventAtMs: this.nextEventAtMs,
+      nextInstanceId: this.nextInstanceId,
+    };
+  }
+
+  public hydrate(snapshot: EventSystemSave) {
+    this.activeEvents = snapshot.active
+      .map((evt) => {
+        const definition = this.eventLibrary.find((def) => def.id === evt.id);
+        if (!definition) return null;
+        return {
+          definition,
+          remainingMs: evt.remainingMs,
+          instanceId: evt.instanceId,
+        };
+      })
+      .filter((evt): evt is ActiveEventState => Boolean(evt));
+    this.nextEventAtMs = snapshot.nextEventAtMs;
+    this.nextInstanceId = Math.max(snapshot.nextInstanceId, 0);
   }
 }

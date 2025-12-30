@@ -116,6 +116,10 @@ export class DistrictSystem {
     );
   }
 
+  public hydrateZones(zones: DistrictZoneDefinition[]) {
+    this.zones = zones.map((zone) => ({ ...zone, area: { ...zone.area } }));
+  }
+
   private isWithinZone(
     zone: DistrictZoneDefinition,
     gridX: number,

@@ -90,4 +90,9 @@ export class TimeSystem {
       elapsedMs: 0,
     };
   }
+
+  public hydrate(snapshot: TimeSnapshot) {
+    this.carryMs = 0;
+    this.snapshot = { ...snapshot };
+  }
 }

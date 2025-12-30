@@ -5,8 +5,10 @@ import {
   Graphics,
   Point,
 } from 'pixi.js';
-import { BuildingType, CELL_SIZE, GRID_SIZE } from '../types/types';
+import { BuildingType, CELL_SIZE, GRID_SIZE, getBuildingType } from '../types/types';
 import { Building } from './Building';
+import { PersistedBuildingState } from '@/types/save';
+import { Worker } from '@/types/data-contract';
 
 export class BuildingManager {
   private app: Application;
@@ -176,6 +178,48 @@ export class BuildingManager {
       }
     }
     return Array.from(res.values());
+  }
+
+  public reset() {
+    this.getBuildings().forEach((b) => b.destroy());
+    this.buildingsMap.clear();
+    if (this.ghost) {
+      this.ghost.destroy();
+      this.ghost = null;
+    }
+    this.draggingType = null;
+  }
+
+  public hydrateBuildings(
+    snapshots: PersistedBuildingState[],
+    workerCatalog: Map<string, Worker>
+  ): Building[] {
+    this.reset();
+    const created: Building[] = [];
+
+    snapshots.forEach((snapshot) => {
+      const type = getBuildingType(snapshot.typeId);
+      if (!type) return;
+
+      const building = new Building(snapshot.gridX, snapshot.gridY, type);
+      const staffProfiles = snapshot.staffIds
+        .map((id) => workerCatalog.get(id))
+        .filter((worker): worker is Worker => Boolean(worker));
+
+      building.hydrate({
+        state: { ...snapshot.state },
+        staffProfiles,
+      });
+      this.world.addChild(building);
+      this.registerBuildingFootprint(building);
+      created.push(building);
+    });
+
+    if (this.ghost) {
+      this.setDragMode(this.draggingType);
+    }
+
+    return created;
   }
 
   private isWithinGrid(gridX: number, gridY: number) {

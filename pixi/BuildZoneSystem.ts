@@ -86,4 +86,16 @@ export class BuildZoneSystem {
       maxSize: this.settings.maxSize,
     };
   }
+
+  public hydrate(snapshot: BuildZoneSnapshot) {
+    const width = Math.min(snapshot.bounds.width, this.settings.maxSize, GRID_SIZE);
+    const height = Math.min(snapshot.bounds.height, this.settings.maxSize, GRID_SIZE);
+    this.bounds = {
+      x: snapshot.bounds.x,
+      y: snapshot.bounds.y,
+      width,
+      height,
+    };
+    this.expansionsPurchased = snapshot.expansionsPurchased;
+  }
 }

@@ -323,8 +323,8 @@ Les visiteurs :
 
 ### 🚀 Vision long terme
 
-- [ ] Sauvegarde / reprise complète (ville, personnel, skills, assets actifs)
-- [ ] Packs graphiques / mods complets (thèmes visuels alternatifs)
+- [x] Sauvegarde / reprise complète (ville, personnel, skills, assets actifs)
+- [x] Packs graphiques / mods complets (thèmes visuels alternatifs)
 
 ---
 

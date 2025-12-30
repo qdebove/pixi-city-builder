@@ -6,7 +6,7 @@ import {
   Point,
   Texture,
 } from 'pixi.js';
-import { AssetDefinition } from '../types/data-contract';
+import { AssetDefinition, AssetRegistry } from '../types/data-contract';
 import {
   BuildingState,
   BuildingType,
@@ -41,6 +41,9 @@ import { EconomySnapshot, EconomySystem } from './EconomySystem';
 import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
 import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
 import { MAP_SETTINGS } from './data/map-settings';
+import { GameSaveState, PersistedBuildingState } from '@/types/save';
+
+const SAVE_VERSION = 1;
 
 export interface SelectedBuildingComputed {
   incomePerTick: number;
@@ -74,6 +77,7 @@ export interface GameUIState {
   economy: EconomySnapshot;
   districts: DistrictSnapshot;
   buildZone: BuildZoneSnapshot;
+  activeAssetPacks: string[];
 }
 
 export class Game {
@@ -114,13 +118,24 @@ export class Game {
   private lastStatsUpdate = 0;
 
   private onStateChange: (state: GameUIState) => void;
+  private assetRegistry: AssetRegistry;
+  private readyPromise: Promise<void>;
 
   constructor(
     container: HTMLDivElement,
     onStateChange: (state: GameUIState) => void
   ) {
     this.onStateChange = onStateChange;
-    this.spriteResolver = new SpriteResolver(BASE_ASSET_REGISTRY);
+    this.assetRegistry = {
+      ...BASE_ASSET_REGISTRY,
+      assets: { ...BASE_ASSET_REGISTRY.assets },
+      rules: { ...BASE_ASSET_REGISTRY.rules },
+      packs: BASE_ASSET_REGISTRY.packs,
+      activePackIds: BASE_ASSET_REGISTRY.activePackIds
+        ? [...BASE_ASSET_REGISTRY.activePackIds]
+        : [],
+    };
+    this.spriteResolver = new SpriteResolver(this.assetRegistry);
     this.reputationSystem = new ReputationSystem();
     this.skillEngine = new SkillEngine();
     this.eventSystem = new EventSystem();
@@ -138,7 +153,11 @@ export class Game {
       maxCatchUpTicks: 6,
       onTick: this.onSimulationTick,
     });
-    this.init(container);
+    this.readyPromise = this.init(container);
+  }
+
+  public whenReady(): Promise<void> {
+    return this.readyPromise;
   }
 
   private async init(container: HTMLDivElement) {
@@ -149,7 +168,7 @@ export class Game {
     });
     container.appendChild(this.app.canvas);
 
-    await this.preloadAssets();
+    await this.preloadAssets(this.assetRegistry.activePackIds);
 
     // ✅ Forcer le curseur en croix sur le canvas lui-même
     this.app.canvas.style.cursor = 'crosshair';
@@ -237,17 +256,25 @@ export class Game {
     this.worldView.world.addChild(overlay);
   }
 
-  private async preloadAssets() {
-    const assets: AssetDefinition[] = Object.values(BASE_ASSET_REGISTRY.assets);
+  private async preloadAssets(activePacks: string[] = []) {
+    const packAssets: AssetDefinition[] = activePacks.flatMap((packId) =>
+      Object.values(this.assetRegistry.packs?.[packId]?.assets ?? {})
+    );
+    const assets: AssetDefinition[] = [
+      ...Object.values(this.assetRegistry.assets),
+      ...packAssets,
+    ];
 
-    assets.forEach((asset) => {
+    const uniqueAssets = new Map<string, AssetDefinition>();
+    assets.forEach((asset) => uniqueAssets.set(asset.id, asset));
+
+    uniqueAssets.forEach((asset) => {
       if (!Assets.get(asset.id)) {
         Assets.add({ alias: asset.id, src: asset.uri });
       }
     });
 
-    const aliases = assets.map((asset) => asset.id);
-    await Assets.load(aliases);
+    await Assets.load(Array.from(uniqueAssets.keys()));
   }
 
   private onFrameUpdate = () => {
@@ -340,18 +367,7 @@ export class Game {
     );
     this.peopleManager.update(ctx);
 
-    const guardBreakdown = this.peopleManager.getWorkersByJob();
-    const roamingGuards = guardBreakdown.guard ?? 0;
-    const stationedGuards = this.buildingManager
-      .getBuildings()
-      .reduce((acc, building) => {
-        const guardCount = building
-          .getStaffMembers()
-          .filter((worker) => worker.jobs.primary === 'guard').length;
-        return acc + guardCount;
-      }, 0);
-
-    this.guardPresence = { roaming: roamingGuards, stationed: stationedGuards };
+    this.recomputeGuardPresence();
 
     this.securitySnapshot = this.securitySystem.update({
       roamingGuardCount: roamingGuards,
@@ -638,6 +654,18 @@ export class Game {
     this.emitState();
   }
 
+  public async applyAssetPacks(packIds: string[], silent: boolean = false) {
+    const validPackIds = (packIds ?? []).filter((id) =>
+      Boolean(this.assetRegistry.packs?.[id])
+    );
+    this.assetRegistry.activePackIds = validPackIds;
+    this.spriteResolver.setActivePacks(validPackIds);
+    await this.preloadAssets(validPackIds);
+    if (!silent) {
+      this.emitState();
+    }
+  }
+
   public upgradeSelectedBuilding() {
     if (!this.selectedBuilding || this.isPaused) return;
     const b = this.selectedBuilding;
@@ -680,6 +708,22 @@ export class Game {
   public getSelectedBuildingScreenPosition(): Point | null {
     if (!this.selectedBuilding) return null;
     return this.selectedBuilding.getCenterGlobalPosition();
+  }
+
+  private recomputeGuardPresence() {
+    const guardBreakdown = this.peopleManager.getWorkersByJob();
+    const roamingGuards = guardBreakdown.guard ?? 0;
+    const stationedGuards = this.buildingManager
+      .getBuildings()
+      .reduce((acc, building) => {
+        const guardCount = building
+          .getStaffMembers()
+          .filter((worker) => worker.jobs.primary === 'guard').length;
+        return acc + guardCount;
+      }, 0);
+
+    this.guardPresence = { roaming: roamingGuards, stationed: stationedGuards };
+    return this.guardPresence;
   }
 
   private computeGlobalStats() {
@@ -759,7 +803,84 @@ export class Game {
       economy,
       districts,
       buildZone,
+      activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
     });
+  }
+
+  public getSavePayload(): GameSaveState {
+    const buildingSnapshots: PersistedBuildingState[] = this.buildingManager
+      .getBuildings()
+      .map((building) => ({
+        gridX: building.gridX,
+        gridY: building.gridY,
+        typeId: building.type.id,
+        state: { ...building.state, incomeProgressMs: building.getIncomeProgressMs() },
+        staffIds: building.getStaffMembers().map((worker) => worker.id),
+        visitorCount: building.getOccupantsByRole().visitor ?? 0,
+      }));
+
+    return {
+      version: SAVE_VERSION,
+      timestamp: Date.now(),
+      money: this.money,
+      totalClicks: this.totalClicks,
+      buildings: buildingSnapshots,
+      hiredWorkers: Array.from(this.hiredWorkerIds.values()),
+      time: this.timeSystem.snapshotState(),
+      debt: this.debtSystem.snapshotState(),
+      economy: this.economySystem.snapshot(),
+      reputation: this.reputationSystem.snapshot(),
+      security: this.securitySnapshot,
+      buildZone: this.buildZoneSystem.snapshot(),
+      districts: this.districtSystem.getZones(),
+      events: this.eventSystem.snapshot(),
+      simulation: this.simulation.snapshotState(),
+      activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
+      people: this.peopleManager.snapshot(),
+    };
+  }
+
+  public async loadFromSave(save: GameSaveState): Promise<boolean> {
+    await this.whenReady();
+    if (!save || save.version !== SAVE_VERSION) return false;
+
+    this.pause();
+    this.money = save.money;
+    this.totalClicks = save.totalClicks;
+    this.hiredWorkerIds = new Set(save.hiredWorkers);
+    this.syncPeoplePool();
+
+    this.simulation.hydrate(save.simulation);
+    this.timeSystem.hydrate(save.time);
+    this.debtSystem.hydrate(save.debt);
+    this.economySystem.hydrate(save.economy);
+    this.reputationSystem.hydrate(save.reputation);
+    this.securitySystem.hydrate(save.security);
+    this.securitySnapshot = { ...save.security };
+    this.buildZoneSystem.hydrate(save.buildZone);
+    this.districtSystem.hydrateZones(save.districts);
+    this.drawBuildZone();
+    this.drawDistricts();
+
+    this.eventSystem.hydrate(save.events);
+    this.activeEvents = save.events.active;
+    await this.applyAssetPacks(save.activeAssetPacks ?? [], true);
+
+    this.peopleManager.resetPeople();
+
+    const workerCatalog = new Map<string, Worker>();
+    WORKER_ROSTER.forEach((worker) => workerCatalog.set(worker.id, worker));
+    this.buildingManager.hydrateBuildings(save.buildings, workerCatalog);
+    this.peopleManager.hydrate(save.people);
+
+    this.recomputeGuardPresence();
+    this.selectedBuilding = null;
+    this.selectedPerson = null;
+    this.isPaused = false;
+    this.pauseStartedAt = null;
+    this.emitState();
+
+    return true;
   }
 
   public destroy() {

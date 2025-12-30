@@ -20,6 +20,7 @@ type FinishCallback = () => boolean | void;
 type PersonOptions = {
   onFinished?: FinishCallback;
   onSelected?: (person: Person) => void;
+  id?: string;
 };
 
 export class Person extends Container {
@@ -68,7 +69,7 @@ export class Person extends Container {
     this.role = role;
     this.profile = profile;
     this.spriteResolver = spriteResolver;
-    this.id = crypto.randomUUID();
+    this.id = options?.id ?? crypto.randomUUID();
     this.onFinished = options?.onFinished || null;
     this.onSelected = options?.onSelected;
 
@@ -122,6 +123,43 @@ export class Person extends Container {
 
   public getId(): string {
     return this.id;
+  }
+
+  public getPathState() {
+    return {
+      path: this.path.map((p) => p.clone()),
+      segmentIndex: this.segmentIndex,
+      segmentProgress: this.segmentProgress,
+      paused: this.paused,
+    };
+  }
+
+  public restorePathState(state: {
+    path: Point[];
+    segmentIndex: number;
+    segmentProgress: number;
+    paused: boolean;
+  }) {
+    if (state.path.length >= 1) {
+      this.path = this.normalizePath(state.path);
+    }
+
+    const maxSegmentIndex = Math.max(0, this.path.length - 2);
+    this.segmentIndex = Math.max(0, Math.min(state.segmentIndex, maxSegmentIndex));
+    this.segmentProgress = Math.max(0, Math.min(state.segmentProgress, 1));
+
+    if (this.path.length === 0) return;
+
+    const from = this.path[this.segmentIndex];
+    const to = this.path[this.segmentIndex + 1] ?? from;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    this.position.set(
+      from.x + dx * this.segmentProgress,
+      from.y + dy * this.segmentProgress
+    );
+
+    this.setPaused(state.paused);
   }
 
   /**

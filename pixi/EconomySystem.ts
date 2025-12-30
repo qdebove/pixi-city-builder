@@ -125,4 +125,14 @@ export class EconomySystem {
       projectedTax,
     };
   }
+
+  public hydrate(snapshot: EconomySnapshot) {
+    this.cachedMaintenancePerDay = snapshot.dailyMaintenance;
+    this.cachedSalariesPerDay = snapshot.dailySalaries;
+    this.cachedPassiveIncomePerDay = snapshot.dailyPassiveIncome;
+    this.lastDailyIncome = snapshot.lastDailyIncome;
+    this.lastMonthlyTax = snapshot.lastMonthlyTax;
+    this.monthIncome = snapshot.monthIncome;
+    this.monthExpenses = snapshot.monthExpenses;
+  }
 }

@@ -32,6 +32,7 @@ export interface BuildingState {
   occupants: Record<PersonRole, number>;
   productionIntervalMs: number;
   districtId?: string;
+  incomeProgressMs?: number;
 }
 
 export const CELL_SIZE = 64;

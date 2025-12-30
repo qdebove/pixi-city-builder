@@ -44,4 +44,9 @@ export class SecuritySystem {
   public snapshot(): SecuritySnapshot {
     return { score: this.score, guardCoverage: this.guardCoverage };
   }
+
+  public hydrate(snapshot: SecuritySnapshot) {
+    this.score = clamp(snapshot.score, 0, 100);
+    this.guardCoverage = clamp(snapshot.guardCoverage, 0, 10);
+  }
 }
