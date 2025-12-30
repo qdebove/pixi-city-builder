@@ -24,6 +24,7 @@ export class BuildingManager {
     gridY: number,
     type: BuildingType
   ) => boolean;
+  private affordabilityChecker?: (type: BuildingType) => boolean;
 
   constructor(app: Application, world: Container) {
     this.app = app;
@@ -40,6 +41,12 @@ export class BuildingManager {
     validator: ((gridX: number, gridY: number, type: BuildingType) => boolean) | null
   ) {
     this.placementValidator = validator ?? undefined;
+  }
+
+  public setAffordabilityChecker(
+    checker: ((type: BuildingType) => boolean) | null
+  ) {
+    this.affordabilityChecker = checker ?? undefined;
   }
 
   private key(gx: number, gy: number) {
@@ -331,6 +338,9 @@ export class BuildingManager {
     const rejectedByRule =
       this.placementValidator &&
       !this.placementValidator(gridX, gridY, this.draggingType);
+    const isAffordable = this.affordabilityChecker
+      ? this.affordabilityChecker(this.draggingType)
+      : true;
     const hasRoadAccess = this.hasRequiredRoadAdjacency(
       gridX,
       gridY,
@@ -338,7 +348,11 @@ export class BuildingManager {
     );
 
     this.ghost.tint =
-      isOccupied || outOfBounds || !hasRoadAccess || rejectedByRule
+      isOccupied ||
+      outOfBounds ||
+      !hasRoadAccess ||
+      rejectedByRule ||
+      !isAffordable
         ? 0xef4444
         : 0x22c55e;
   }

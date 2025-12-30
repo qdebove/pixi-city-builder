@@ -85,6 +85,7 @@ export interface GameUIState {
   debt: DebtSnapshot;
   security: SecuritySnapshot;
   guardPresence: { roaming: number; stationed: number };
+  timeScale: number;
   hiredWorkers: string[];
   hiredByJob: Record<string, number>;
   economy: EconomySnapshot;
@@ -133,6 +134,7 @@ export class Game {
   private selectedBuildingComputed: SelectedBuildingComputed | null = null;
   private isPaused: boolean = false;
   private pauseStartedAt: number | null = null;
+  private timeScale: number = 1;
   private activeEvents: ActiveEventSnapshot[] = [];
 
   private buildZoneOverlay?: Graphics;
@@ -210,6 +212,7 @@ export class Game {
     this.buildingManager.setPlacementValidator((gx, gy, type) =>
       this.buildZoneSystem.canBuildAt(gx, gy, type.width, type.height)
     );
+    this.buildingManager.setAffordabilityChecker((type) => this.money >= type.cost);
     this.buildingManager.setOnBuildingPlaced((building) => {
       const zone = this.districtSystem.getDistrictForBuilding(building);
       building.setDistrict(zone?.id);
@@ -312,7 +315,10 @@ export class Game {
   }
 
   private onFrameUpdate = () => {
-    this.simulation.step(this.app.ticker.deltaMS, this.isPaused);
+    this.simulation.step(
+      this.app.ticker.deltaMS * Math.max(0.1, this.timeScale),
+      this.isPaused
+    );
   };
 
   private onSimulationTick = (ctx: TickContext) => {
@@ -768,6 +774,25 @@ export class Game {
     }
   }
 
+  public setTimeMultiplier(multiplier: number) {
+    this.timeScale = Math.max(0.1, Math.min(multiplier, 4));
+    this.emitState();
+  }
+
+  public setTimeMode(mode: 'pause' | 'normal' | 'fast') {
+    if (mode === 'pause') {
+      this.pause();
+      return;
+    }
+
+    this.timeScale = mode === 'fast' ? 3 : 1;
+    const wasPaused = this.isPaused;
+    this.resume();
+    if (!wasPaused) {
+      this.emitState();
+    }
+  }
+
   public getSelectedBuildingScreenPosition(): Point | null {
     if (!this.selectedBuilding) return null;
     return this.selectedBuilding.getCenterGlobalPosition();
@@ -1149,6 +1174,7 @@ export class Game {
         ? { ...this.selectedPerson }
         : null,
       isPaused: this.isPaused,
+      timeScale: this.timeScale,
       movingPeopleCount,
       occupantsByType,
       peopleByRole,
@@ -1254,6 +1280,7 @@ export class Game {
     this.selectedPerson = null;
     this.isPaused = false;
     this.pauseStartedAt = null;
+    this.timeScale = 1;
     this.emitState();
 
     return true;
