@@ -71,7 +71,7 @@
 
 #### 🟦 P2 – Améliorations & polish
 
-* **[ID-008] Notifications clés**
+* [x] **[ID-008] Notifications clés**
   * Alertes pour échéance dette, satisfaction basse, bâtiment saturé
   * Pas d’anticipation des risques
   * Event bus, HUD notifications

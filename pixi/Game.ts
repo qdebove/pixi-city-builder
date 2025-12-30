@@ -26,7 +26,7 @@ import { SpriteResolver } from './assets/SpriteResolver';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { IncomePulse } from './IncomePulse';
 import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
-import { SelectedPersonSnapshot } from '@/types/ui';
+import { GameNotification, SelectedPersonSnapshot } from '@/types/ui';
 import { EventSystem } from './EventSystem';
 import { ActiveEventSnapshot } from './EventSystem';
 import { TimeSnapshot, TimeSystem } from './TimeSystem';
@@ -52,6 +52,7 @@ import {
   PersistedWorkerSchedule,
 } from '@/types/save';
 import { createDefaultSchedule } from './data/worker-schedules';
+import { NotificationCenter } from './NotificationCenter';
 
 const SAVE_VERSION = 1;
 
@@ -94,6 +95,7 @@ export interface GameUIState {
   activeAssetPacks: string[];
   attraction: AttractionSnapshot;
   workerSchedules: ReturnType<Game['buildWorkerScheduleSnapshots']>;
+  notifications: GameNotification[];
 }
 
 type WorkerScheduleState = {
@@ -121,6 +123,7 @@ export class Game {
   private attractionSnapshot: AttractionSnapshot;
   private skillEngine: SkillEngine;
   private eventSystem: EventSystem;
+  private notificationCenter: NotificationCenter;
   private securitySystem: SecuritySystem;
   private securitySnapshot: SecuritySnapshot;
   private guardPresence = { roaming: 0, stationed: 0 };
@@ -136,6 +139,7 @@ export class Game {
   private pauseStartedAt: number | null = null;
   private timeScale: number = 1;
   private activeEvents: ActiveEventSnapshot[] = [];
+  private activeNotifications: GameNotification[] = [];
 
   private buildZoneOverlay?: Graphics;
   private districtOverlay?: Graphics;
@@ -149,6 +153,7 @@ export class Game {
   private assetRegistry: AssetRegistry;
   private readyPromise: Promise<void>;
   private workerSchedules = new Map<string, WorkerScheduleState>();
+  private buildingSaturationTracker = new Map<string, { startedAt: number; lastSeen: number }>();
 
   constructor(
     container: HTMLDivElement,
@@ -170,6 +175,7 @@ export class Game {
     this.attractionSnapshot = this.attractionSystem.snapshotState();
     this.skillEngine = new SkillEngine();
     this.eventSystem = new EventSystem();
+    this.notificationCenter = new NotificationCenter();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
     const defaultDueDay =
       DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30;
@@ -322,6 +328,7 @@ export class Game {
   };
 
   private onSimulationTick = (ctx: TickContext) => {
+    this.notificationCenter.prune(ctx.nowMs);
     const eventModifiers = this.eventSystem.update(ctx);
 
     this.selectedBuildingComputed = null;
@@ -412,6 +419,8 @@ export class Game {
       eventModifiers.spawnIntervalMultiplier
     );
     this.peopleManager.update(ctx);
+    const visitorSentiment = this.computeVisitorSentiment();
+    const visitorSaturation = this.computeVisitorSaturation();
 
     const { roaming: roamingGuards, stationed: stationedGuards } =
       this.recomputeGuardPresence();
@@ -430,10 +439,12 @@ export class Game {
     });
 
     this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
-    this.recomputeAttraction();
+    this.recomputeAttraction(visitorSentiment, visitorSaturation);
 
-    const debtEvents = this.buildDebtEvents(this.timeSystem.snapshotState());
+    const timeSnapshot = this.timeSystem.snapshotState();
+    const debtEvents = this.buildDebtEvents(timeSnapshot);
     this.activeEvents = [...eventModifiers.activeEvents, ...debtEvents];
+    this.evaluateNotifications(ctx, timeSnapshot, visitorSentiment);
 
     if (eventModifiers.moneyDelta !== 0) {
       this.money += eventModifiers.moneyDelta;
@@ -793,6 +804,24 @@ export class Game {
     }
   }
 
+  public focusBuilding(instanceId: string): boolean {
+    const building = this.buildingManager
+      .getBuildings()
+      .find((b) => b.state.instanceId === instanceId);
+    if (!building) return false;
+
+    const center = building.getCenterGlobalPosition();
+    this.worldView.focusOn(center);
+    this.selectBuilding(building);
+    return true;
+  }
+
+  public acknowledgeNotification(id: string) {
+    this.notificationCenter.dismiss(id);
+    this.activeNotifications = this.notificationCenter.snapshot();
+    this.emitState();
+  }
+
   public getSelectedBuildingScreenPosition(): Point | null {
     if (!this.selectedBuilding) return null;
     return this.selectedBuilding.getCenterGlobalPosition();
@@ -1092,6 +1121,108 @@ export class Game {
     return { ratio, capacity: aggregated.capacity, occupants: aggregated.occupants };
   }
 
+  private evaluateNotifications(
+    ctx: TickContext,
+    timeSnapshot: TimeSnapshot,
+    visitorSentiment: ReturnType<Game['computeVisitorSentiment']>
+  ) {
+    const debt = this.debtSystem.snapshotState();
+    if (!debt.isPaidForMonth) {
+      const daysUntilDue = debt.dueDay - timeSnapshot.day;
+      const severity = daysUntilDue < 0 ? 'critical' : 'warning';
+      const dueLabel =
+        daysUntilDue < 0
+          ? `Retard de ${Math.abs(daysUntilDue)} jour(s)`
+          : daysUntilDue === 0
+            ? "Échéance aujourd'hui"
+            : `Échéance dans ${daysUntilDue} jour(s)`;
+      this.notificationCenter.raise(
+        {
+          key: daysUntilDue < 0 ? `debt-overdue-${debt.monthIndex}` : `debt-due-${debt.monthIndex}`,
+          title: severity === 'critical' ? 'Dette en retard' : 'Paiement de dette imminent',
+          message: `${dueLabel} · ${debt.paymentDue.toLocaleString('fr-FR')}€ à régler.`,
+          severity,
+          action: { type: 'show-debt' },
+          actionLabel: 'Voir',
+          cooldownMs: this.timeSystem.getMsPerDay(),
+        },
+        ctx.nowMs
+      );
+    }
+
+    if (visitorSentiment.samples > 3 && visitorSentiment.average < 0.5) {
+      const percent = Math.round(visitorSentiment.average * 100);
+      const severity = visitorSentiment.average < 0.35 ? 'critical' : 'warning';
+      this.notificationCenter.raise(
+        {
+          key: severity === 'critical' ? 'satisfaction-critical' : 'satisfaction-warning',
+          title: 'Satisfaction moyenne faible',
+          message: `Moyenne actuelle ${percent}% sur ${visitorSentiment.samples} visiteurs actifs.`,
+          severity,
+          action: { type: 'show-satisfaction' },
+          actionLabel: 'Voir',
+          cooldownMs: 20000,
+        },
+        ctx.nowMs
+      );
+    }
+
+    this.trackBuildingSaturation(ctx.nowMs);
+    this.activeNotifications = this.notificationCenter.snapshot();
+  }
+
+  private trackBuildingSaturation(nowMs: number) {
+    const seen = new Set<string>();
+    const saturationThresholdMs = 30000;
+
+    this.buildingManager.getBuildings().forEach((building) => {
+      if (building.type.isRoad) return;
+
+      const visitorCap = building.getCapacityForRole('visitor');
+      const queueCap = building.getQueueCapacity();
+      if (visitorCap <= 0 && queueCap <= 0) return;
+
+      const isSaturated =
+        (visitorCap > 0 && building.getOccupancyRatioFor('visitor') >= 1) ||
+        (queueCap > 0 && building.getQueueRatio() >= 1);
+      const key = building.state.instanceId;
+      seen.add(key);
+
+      if (isSaturated) {
+        const tracker = this.buildingSaturationTracker.get(key);
+        if (!tracker) {
+          this.buildingSaturationTracker.set(key, { startedAt: nowMs, lastSeen: nowMs });
+        } else {
+          tracker.lastSeen = nowMs;
+          if (nowMs - tracker.startedAt >= saturationThresholdMs) {
+            this.notificationCenter.raise(
+              {
+                key: `saturation-${key}`,
+                title: `${building.type.name} saturé`,
+                message:
+                  'Capacité et file sont pleines depuis 30s. Les visiteurs repartent insatisfaits.',
+                severity: 'warning',
+                action: { type: 'focus-building', buildingId: key },
+                actionLabel: 'Voir',
+                cooldownMs: 45000,
+              },
+              nowMs
+            );
+            tracker.startedAt = nowMs + 1;
+          }
+        }
+      } else {
+        this.buildingSaturationTracker.delete(key);
+      }
+    });
+
+    Array.from(this.buildingSaturationTracker.keys()).forEach((key) => {
+      if (!seen.has(key)) {
+        this.buildingSaturationTracker.delete(key);
+      }
+    });
+  }
+
   private broadcastReputationChange(reputation: ReputationSnapshot) {
     if (typeof window === 'undefined') return;
 
@@ -1120,9 +1251,10 @@ export class Game {
     );
   }
 
-  private recomputeAttraction() {
-    const visitorSentiment = this.computeVisitorSentiment();
-    const visitorSaturation = this.computeVisitorSaturation();
+  private recomputeAttraction(
+    visitorSentiment: ReturnType<Game['computeVisitorSentiment']>,
+    visitorSaturation: ReturnType<Game['computeVisitorSaturation']>
+  ) {
     const reputationSnapshot = this.reputationSystem.snapshot();
     this.attractionSnapshot = this.attractionSystem.update({
       reputation: reputationSnapshot,
@@ -1194,6 +1326,7 @@ export class Game {
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
       attraction: this.attractionSnapshot,
       workerSchedules: this.buildWorkerScheduleSnapshots(time),
+      notifications: this.activeNotifications,
     });
   }
 
@@ -1244,6 +1377,9 @@ export class Game {
     if (!save || save.version !== SAVE_VERSION) return false;
 
     this.pause();
+    this.notificationCenter.reset();
+    this.activeNotifications = [];
+    this.buildingSaturationTracker.clear();
     this.money = save.money;
     this.totalClicks = save.totalClicks;
     this.hiredWorkerIds = new Set(save.hiredWorkers);
