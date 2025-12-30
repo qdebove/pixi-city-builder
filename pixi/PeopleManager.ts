@@ -356,13 +356,23 @@ export class PeopleManager {
       targetInstanceId: building.instanceId,
     });
 
+    const roadWaypoint = path[1] ?? path[0];
+
     person.setPath(path, () => {
       const target = this.buildingManager
         .getBuildings()
         .find((b) => b.state.instanceId === building.instanceId);
 
       if (target) {
-        target.addOccupant(person.role, person.getProfile());
+        const status = target.addOccupant(person.role, person.getProfile());
+        if (status === 'rejected') {
+          this.behaviors.set(person.getId(), { kind: 'wander' });
+          person.setPath([person.position.clone(), roadWaypoint.clone()], () => {
+            this.lastTileKey.delete(person);
+            return false;
+          });
+          return true;
+        }
       }
 
       this.lastTileKey.delete(person);

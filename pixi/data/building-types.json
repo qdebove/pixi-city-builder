@@ -9,6 +9,7 @@
     "maxLevel": 5,
     "baseHealth": 100,
     "capacity": 2,
+    "queueMax": 0,
     "staffCapacity": 0,
     "staffEfficiency": 0,
     "category": "housing",
@@ -16,7 +17,9 @@
     "width": 1,
     "height": 1,
     "requiresRoadAccess": true,
-    "dailyPassiveIncome": 24
+    "dailyPassiveIncome": 24,
+    "serviceQuality": 0.9,
+    "comfort": 1
   },
   {
     "id": "shop",
@@ -28,6 +31,7 @@
     "maxLevel": 10,
     "baseHealth": 250,
     "capacity": 5,
+    "queueMax": 8,
     "staffCapacity": 2,
     "staffEfficiency": 0.35,
     "category": "commerce",
@@ -35,7 +39,9 @@
     "width": 2,
     "height": 1,
     "requiresRoadAccess": true,
-    "dailyPassiveIncome": 48
+    "dailyPassiveIncome": 48,
+    "serviceQuality": 0.85,
+    "comfort": 0.8
   },
   {
     "id": "factory",
@@ -47,6 +53,7 @@
     "maxLevel": 15,
     "baseHealth": 500,
     "capacity": 10,
+    "queueMax": 10,
     "staffCapacity": 4,
     "staffEfficiency": 0.5,
     "category": "industry",
@@ -54,7 +61,9 @@
     "width": 2,
     "height": 2,
     "requiresRoadAccess": true,
-    "dailyPassiveIncome": 96
+    "dailyPassiveIncome": 96,
+    "serviceQuality": 0.6,
+    "comfort": 0.65
   },
   {
     "id": "road",

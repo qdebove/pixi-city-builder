@@ -1,4 +1,4 @@
-import { Container, Graphics, IDestroyOptions, Point, Ticker } from 'pixi.js';
+import { Container, Graphics, IDestroyOptions, Point, Text, Ticker } from 'pixi.js';
 import { PassiveInstance, Visitor, Worker } from '../types/data-contract';
 import {
   BuildingState,
@@ -18,6 +18,8 @@ export class Building extends Container {
   public state: BuildingState;
   public districtId?: string;
   private incomeProgressMs = 0;
+  private visitorQueue = 0;
+  private lastServiceSatisfaction = 0.65;
 
   private readonly unlockedPassives: PassiveInstance[];
   private staffMembers: Worker[] = [];
@@ -25,6 +27,9 @@ export class Building extends Container {
 
   private visual: Graphics;
   private selectionRing: Graphics;
+  private badge?: Container;
+  private badgeBg?: Graphics;
+  private badgeLabel?: Text;
 
   constructor(gx: number, gy: number, type: BuildingType) {
     super();
@@ -45,6 +50,8 @@ export class Building extends Container {
       occupants: { visitor: 0, staff: 0 },
       productionIntervalMs: type.baseIntervalMs || 2000, // ✅ propre à chaque type
       incomeProgressMs: 0,
+      queueLength: 0,
+      lastServiceSatisfaction: this.lastServiceSatisfaction,
     };
 
     this.position.set(
@@ -54,17 +61,37 @@ export class Building extends Container {
 
     this.visual = new Graphics();
     this.selectionRing = new Graphics();
-    this.addChild(this.visual, this.selectionRing);
+    this.badge = new Container();
+    this.badgeBg = new Graphics();
+    this.badgeLabel = new Text({
+      text: '',
+      style: {
+        fontSize: 11,
+        fill: 0xffffff,
+        fontWeight: '700',
+      },
+    });
+    this.badge.addChild(this.badgeBg, this.badgeLabel);
+    this.badge.visible = false;
+    this.addChild(this.visual, this.selectionRing, this.badge);
 
     this.drawVisual();
     this.drawSelectionRing();
+    this.updateBadge();
 
     this.eventMode = 'static';
     this.on('pointerover', () => {
       this.visual.alpha = 0.85;
+      if (this.badge) {
+        this.badge.visible = true;
+        this.updateBadge();
+      }
     });
     this.on('pointerout', () => {
       this.visual.alpha = 1;
+      if (this.badge) {
+        this.badge.visible = false;
+      }
     });
 
     Ticker.shared.add(this.updateAnim, this);
@@ -151,6 +178,12 @@ export class Building extends Container {
 
   public updateState(newState: Partial<BuildingState>) {
     this.state = { ...this.state, ...newState };
+    if (newState.queueLength !== undefined) {
+      this.visitorQueue = Math.max(0, newState.queueLength);
+    }
+    if (newState.lastServiceSatisfaction !== undefined) {
+      this.lastServiceSatisfaction = newState.lastServiceSatisfaction;
+    }
     this.state.currentOccupants = this.getTotalOccupants();
 
     if (newState.productionIntervalMs !== undefined) {
@@ -168,6 +201,7 @@ export class Building extends Container {
     }
 
     this.drawVisual();
+    this.updateBadge();
   }
 
   public setDistrict(districtId: string | undefined) {
@@ -188,6 +222,9 @@ export class Building extends Container {
       visitorProfiles.length
     );
 
+    this.visitorQueue = Math.max(0, payload.state.queueLength ?? 0);
+    this.lastServiceSatisfaction = payload.state.lastServiceSatisfaction ?? this.lastServiceSatisfaction;
+
     this.state = {
       ...payload.state,
       occupants: {
@@ -198,6 +235,8 @@ export class Building extends Container {
         visitor: visitorCount,
         staff: staffCount,
       }),
+      queueLength: this.visitorQueue,
+      lastServiceSatisfaction: this.lastServiceSatisfaction,
     };
     this.districtId = payload.state.districtId;
     this.staffMembers = staffProfiles;
@@ -206,6 +245,7 @@ export class Building extends Container {
     const savedProgress = Math.max(0, payload.state.incomeProgressMs ?? 0);
     this.incomeProgressMs = Math.min(savedProgress, interval);
     this.drawVisual();
+    this.updateBadge();
   }
 
   public setSelected(isSelected: boolean) {
@@ -217,8 +257,16 @@ export class Building extends Container {
     return this.getIncomeWithoutPassives();
   }
 
-  public addOccupant(role: PersonRole, profile?: Worker | Visitor) {
-    if (!this.hasCapacityFor(role)) return;
+  public addOccupant(
+    role: PersonRole,
+    profile?: Worker | Visitor
+  ): 'entered' | 'queued' | 'rejected' {
+    if (role === 'visitor' && !this.hasCapacityFor(role)) {
+      const queued = this.enqueueVisitor(profile);
+      return queued ? 'queued' : 'rejected';
+    }
+
+    if (!this.hasCapacityFor(role)) return 'rejected';
 
     this.rememberProfile(role, profile);
 
@@ -231,9 +279,13 @@ export class Building extends Container {
       ...this.state,
       occupants: nextOccupants,
       currentOccupants: this.computeTotalOccupants(nextOccupants),
+      queueLength: this.visitorQueue,
+      lastServiceSatisfaction: this.lastServiceSatisfaction,
     };
 
     this.drawVisual();
+    this.updateBadge();
+    return 'entered';
   }
 
   public getOccupantsByRole(): Record<PersonRole, number> {
@@ -284,6 +336,24 @@ export class Building extends Container {
     return this.type.staffCapacity;
   }
 
+  public getQueueLength(): number {
+    return this.visitorQueue;
+  }
+
+  public getQueueCapacity(): number {
+    return Math.max(0, this.type.queueMax ?? 0);
+  }
+
+  public getQueueRatio(): number {
+    const capacity = this.getQueueCapacity();
+    if (capacity <= 0) return 0;
+    return Math.min(1, this.visitorQueue / capacity);
+  }
+
+  public getLastServiceSatisfaction(): number {
+    return this.lastServiceSatisfaction;
+  }
+
   public getStaffNeedScore(): number {
     const cap = this.getStaffCapacity();
     if (cap <= 0) return 0;
@@ -312,6 +382,28 @@ export class Building extends Container {
     return (occupants.visitor || 0) + (occupants.staff || 0);
   }
 
+  private enqueueVisitor(profile?: Worker | Visitor): boolean {
+    if (!this.hasQueueSpace()) return false;
+    if (profile) {
+      this.rememberProfile('visitor', profile);
+    }
+    this.visitorQueue += 1;
+    this.state.queueLength = this.visitorQueue;
+    this.updateBadge();
+    return true;
+  }
+
+  private hasQueueSpace(): boolean {
+    const maxQueue = this.getQueueCapacity();
+    if (maxQueue <= 0) return false;
+    return this.visitorQueue < maxQueue;
+  }
+
+  public canAcceptVisitor(): boolean {
+    if (this.type.capacity <= 0) return false;
+    return this.hasCapacityFor('visitor') || this.hasQueueSpace();
+  }
+
   public getCenterGlobalPosition(): Point {
     return this.toGlobal(new Point(0, 0));
   }
@@ -322,6 +414,58 @@ export class Building extends Container {
 
   private updateAnim() {
     // laissé vide pour de futures animations éventuelles
+  }
+
+  public completeServiceCycle(): {
+    servedVisitors: number;
+    queuedRemaining: number;
+    satisfaction: number;
+  } {
+    if (this.type.isRoad) {
+      return {
+        servedVisitors: 0,
+        queuedRemaining: this.visitorQueue,
+        satisfaction: this.lastServiceSatisfaction,
+      };
+    }
+
+    const capacity = this.getCapacityForRole('visitor');
+    const currentVisitors = Math.min(this.state.occupants.visitor ?? 0, capacity);
+    const queueCapacity = Math.max(1, this.getQueueCapacity() || 1);
+    const waitPenalty =
+      this.visitorQueue > 0 ? Math.min(0.45, (this.visitorQueue / queueCapacity) * 0.5) : 0;
+    const quality = this.type.serviceQuality ?? 0.7;
+    const comfort = this.type.comfort ?? 0.7;
+
+    this.lastServiceSatisfaction = this.clamp01(0.35 + quality * 0.4 + comfort * 0.25 - waitPenalty);
+    this.state.lastServiceSatisfaction = this.lastServiceSatisfaction;
+
+    const servedVisitors = currentVisitors;
+    const admittedFromQueue = Math.min(this.visitorQueue, capacity);
+    this.visitorQueue = Math.max(0, this.visitorQueue - admittedFromQueue);
+
+    const nextOccupants = {
+      ...this.state.occupants,
+      visitor: admittedFromQueue,
+    };
+    this.state = {
+      ...this.state,
+      occupants: nextOccupants,
+      currentOccupants: this.computeTotalOccupants(nextOccupants),
+      queueLength: this.visitorQueue,
+      lastServiceSatisfaction: this.lastServiceSatisfaction,
+    };
+    this.updateBadge();
+
+    return {
+      servedVisitors,
+      queuedRemaining: this.visitorQueue,
+      satisfaction: this.lastServiceSatisfaction,
+    };
+  }
+
+  private clamp01(value: number): number {
+    return Math.min(1, Math.max(0, value));
   }
 
   public accumulateIncomeProgress(deltaMs: number): number {
@@ -342,8 +486,44 @@ export class Building extends Container {
     return this.incomeProgressMs;
   }
 
+  private updateBadge() {
+    if (!this.badge || !this.badgeBg || !this.badgeLabel) return;
+
+    const capacity = this.getCapacityForRole('visitor');
+    const queueCap = this.getQueueCapacity();
+    if (capacity <= 0 && queueCap <= 0) {
+      this.badge.visible = false;
+      return;
+    }
+
+    const occRatio = capacity > 0 ? this.getOccupancyRatioFor('visitor') : 0;
+    const queueRatio = queueCap > 0 ? this.getQueueRatio() : 0;
+    const severity = Math.max(occRatio, queueRatio);
+
+    const color =
+      severity < 0.7 ? 0x22c55e : severity < 1 ? 0xf59e0b : 0xef4444;
+
+    const label = `Cap. ${this.state.occupants.visitor}/${capacity} • File ${this.visitorQueue}/${queueCap || 0}`;
+    this.badgeLabel.text = label;
+    this.badgeLabel.style.fill = color;
+
+    const padding = 6;
+    const { width, height } = this.badgeLabel;
+    this.badgeBg.clear();
+    this.badgeBg
+      .roundRect(-padding, -padding, width + padding * 2, height + padding * 2, 6)
+      .fill({ color: 0x0f172a, alpha: 0.88 })
+      .stroke({ width: 2, color, alpha: 0.9 });
+
+    this.badgeLabel.position.set(0, 0);
+    this.badge.position.set(-width / 2, -this.heightCells * CELL_SIZE / 2 - height - 10);
+  }
+
   public destroy(options?: boolean | IDestroyOptions) {
     Ticker.shared.remove(this.updateAnim, this);
+    this.badgeLabel?.destroy();
+    this.badgeBg?.destroy();
+    this.badge?.destroy();
     super.destroy(options);
   }
 }
