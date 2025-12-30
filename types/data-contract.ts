@@ -498,6 +498,15 @@ export interface WorkerNeeds {
   restTargetBuildingId?: ID;
 }
 
+export type WorkerShiftAssignment = "primary" | "secondary" | "service" | "rest";
+
+export interface WorkerScheduleSlot {
+  startHour: number;
+  endHour: number;
+  assignment: WorkerShiftAssignment;
+  label?: string;
+}
+
 /* ------------------------------ Skill trees ------------------------------ */
 
 export interface SkillTree {

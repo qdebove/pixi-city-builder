@@ -36,13 +36,22 @@ import { ECONOMY_SETTINGS } from './data/economy-settings';
 import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
 import { ServiceFlash } from './ServiceFlash';
 import { WORKER_ROSTER } from './data/game-model';
-import { Worker } from '@/types/data-contract';
+import {
+  Worker,
+  WorkerShiftAssignment,
+  WorkerScheduleSlot,
+} from '@/types/data-contract';
 import { computeWorkerCost } from './data/recruitment';
 import { EconomySnapshot, EconomySystem } from './EconomySystem';
 import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
 import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
 import { MAP_SETTINGS } from './data/map-settings';
-import { GameSaveState, PersistedBuildingState } from '@/types/save';
+import {
+  GameSaveState,
+  PersistedBuildingState,
+  PersistedWorkerSchedule,
+} from '@/types/save';
+import { createDefaultSchedule } from './data/worker-schedules';
 
 const SAVE_VERSION = 1;
 
@@ -80,7 +89,16 @@ export interface GameUIState {
   buildZone: BuildZoneSnapshot;
   activeAssetPacks: string[];
   attraction: AttractionSnapshot;
+  workerSchedules: ReturnType<Game['buildWorkerScheduleSnapshots']>;
 }
+
+type WorkerScheduleState = {
+  workerId: string;
+  slots: WorkerScheduleSlot[];
+  fatigue: number;
+  hunger: number;
+  morale: number;
+};
 
 export class Game {
   private app: Application;
@@ -125,6 +143,7 @@ export class Game {
   private onStateChange: (state: GameUIState) => void;
   private assetRegistry: AssetRegistry;
   private readyPromise: Promise<void>;
+  private workerSchedules = new Map<string, WorkerScheduleState>();
 
   constructor(
     container: HTMLDivElement,
@@ -162,6 +181,7 @@ export class Game {
       maxCatchUpTicks: 6,
       onTick: this.onSimulationTick,
     });
+    this.initWorkerSchedules();
     this.readyPromise = this.init(container);
   }
 
@@ -373,13 +393,15 @@ export class Game {
       }
     });
 
+    this.updateWorkerSchedules(ctx);
+
     this.peopleManager.setSpawnIntervalMultiplier(
       eventModifiers.spawnIntervalMultiplier
     );
     this.peopleManager.update(ctx);
 
-    this.recomputeGuardPresence();
-
+    const { roaming: roamingGuards, stationed: stationedGuards } =
+      this.recomputeGuardPresence();
     this.securitySnapshot = this.securitySystem.update({
       roamingGuardCount: roamingGuards,
       stationedGuards,
@@ -430,11 +452,16 @@ export class Game {
     return true;
   }
 
+  public updateWorkerSlot(
+    workerId: string,
+    slotIndex: number,
+    assignment: WorkerShiftAssignment
+  ) {
+    this.setWorkerSlotAssignment(workerId, slotIndex, assignment);
+  }
+
   private syncPeoplePool() {
-    const templates: Worker[] = WORKER_ROSTER.filter((worker) =>
-      this.hiredWorkerIds.has(worker.id)
-    );
-    this.peopleManager.setAvailableWorkers(templates);
+    this.refreshAvailableWorkers();
   }
 
   private onPersonSelected = (selection: SelectedPersonSnapshot) => {
@@ -755,6 +782,178 @@ export class Game {
     return this.guardPresence;
   }
 
+  private initWorkerSchedules() {
+    WORKER_ROSTER.forEach((worker) => {
+      if (this.workerSchedules.has(worker.id)) return;
+      this.workerSchedules.set(worker.id, {
+        workerId: worker.id,
+        slots: createDefaultSchedule(worker),
+        fatigue: 0.18,
+        hunger: 0.12,
+        morale: 0.76,
+      });
+    });
+  }
+
+  private hydrateWorkerSchedules(saved?: PersistedWorkerSchedule[]) {
+    this.workerSchedules.clear();
+    if (saved && saved.length > 0) {
+      saved.forEach((state) => {
+        this.workerSchedules.set(state.workerId, {
+          workerId: state.workerId,
+          slots: state.slots.map((slot) => ({ ...slot })),
+          fatigue: this.clamp01(state.fatigue),
+          hunger: this.clamp01(state.hunger),
+          morale: this.clamp01(state.morale),
+        });
+      });
+    }
+
+    this.initWorkerSchedules();
+  }
+
+  private findCurrentSlotIndex(slots: WorkerScheduleSlot[], hour: number) {
+    const normalizedHour = ((hour % 24) + 24) % 24;
+    const index = slots.findIndex(
+      (slot) => normalizedHour >= slot.startHour && normalizedHour < slot.endHour
+    );
+    return index >= 0 ? index : 0;
+  }
+
+  private updateWorkerSchedules(ctx: TickContext) {
+    const time = this.timeSystem.snapshotState();
+    const hoursDelta = ctx.deltaMs / TIME_SETTINGS.msPerHour;
+
+    this.workerSchedules.forEach((state) => {
+      const slotIndex = this.findCurrentSlotIndex(state.slots, time.hour);
+      const slot = state.slots[slotIndex] ?? state.slots[0];
+
+      switch (slot.assignment) {
+        case 'primary':
+        case 'secondary':
+          state.fatigue = this.clamp01(state.fatigue + 0.12 * hoursDelta);
+          state.hunger = this.clamp01(state.hunger + 0.09 * hoursDelta);
+          state.morale = this.clamp01(state.morale - 0.03 * hoursDelta);
+          break;
+        case 'service':
+          state.fatigue = this.clamp01(state.fatigue - 0.06 * hoursDelta);
+          state.hunger = this.clamp01(state.hunger - 0.12 * hoursDelta);
+          state.morale = this.clamp01(state.morale + 0.02 * hoursDelta);
+          break;
+        case 'rest':
+        default:
+          state.fatigue = this.clamp01(state.fatigue - 0.1 * hoursDelta);
+          state.hunger = this.clamp01(state.hunger - 0.04 * hoursDelta);
+          state.morale = this.clamp01(state.morale + 0.015 * hoursDelta);
+          break;
+      }
+
+      if (state.fatigue > 0.88) {
+        state.morale = this.clamp01(state.morale - 0.04 * hoursDelta);
+      }
+    });
+
+    this.refreshAvailableWorkers(time.hour);
+  }
+
+  private computeEfficiencyModifier(state: WorkerScheduleState) {
+    const fatiguePenalty = state.fatigue * 0.4;
+    const hungerPenalty = state.hunger * 0.25;
+    const moraleBonus = (state.morale - 0.5) * 0.2;
+    return this.clamp(Math.round((1 - fatiguePenalty - hungerPenalty + moraleBonus) * 100) / 100, 0.6, 1.25);
+  }
+
+  private buildWorkerScheduleSnapshots(time: TimeSnapshot) {
+    return Array.from(this.workerSchedules.values())
+      .map((state) => {
+        if (!this.hiredWorkerIds.has(state.workerId)) return null;
+        const worker = WORKER_ROSTER.find((w) => w.id === state.workerId);
+        if (!worker) return null;
+
+        const slotIndex = this.findCurrentSlotIndex(state.slots, time.hour);
+        const slot = state.slots[slotIndex] ?? state.slots[0];
+        const efficiencyModifier = this.computeEfficiencyModifier(state);
+        const cautionLabel =
+          state.fatigue >= 0.9
+            ? 'Épuisée'
+            : state.hunger >= 0.9
+            ? 'Affamée'
+            : undefined;
+
+        return {
+          workerId: state.workerId,
+          name: worker.identity?.firstName ?? state.workerId,
+          primaryJob: worker.jobs.primary,
+          secondaryJobs: [...worker.jobs.secondary],
+          currentAssignment: slot.assignment,
+          currentSlotIndex: slotIndex,
+          fatigue: Number(state.fatigue.toFixed(3)),
+          hunger: Number(state.hunger.toFixed(3)),
+          morale: Number(state.morale.toFixed(3)),
+          efficiencyModifier,
+          cautionLabel,
+          slots: state.slots.map((s) => ({
+            startHour: s.startHour,
+            endHour: s.endHour,
+            label: s.label ?? `${s.startHour}h-${s.endHour}h`,
+            assignment: s.assignment,
+          })),
+        };
+      })
+      .filter((snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot));
+  }
+
+  private refreshAvailableWorkers(currentHour?: number) {
+    const timeHour = currentHour ?? this.timeSystem.snapshotState().hour;
+    const activeWorkers: Worker[] = [];
+    this.hiredWorkerIds.forEach((workerId) => {
+      const worker = WORKER_ROSTER.find((w) => w.id === workerId);
+      if (!worker) return;
+
+      const schedule = this.workerSchedules.get(workerId);
+      if (!schedule) return;
+
+      const slotIndex = this.findCurrentSlotIndex(schedule.slots, timeHour);
+      const slot = schedule.slots[slotIndex] ?? schedule.slots[0];
+      const isActive =
+        (slot.assignment === 'primary' || slot.assignment === 'secondary') &&
+        schedule.fatigue < 0.95 &&
+        schedule.hunger < 0.95;
+
+      if (isActive) {
+        activeWorkers.push(worker);
+      }
+    });
+
+    this.peopleManager.setAvailableWorkers(activeWorkers);
+  }
+
+  private setWorkerSlotAssignment(
+    workerId: string,
+    slotIndex: number,
+    assignment: WorkerShiftAssignment
+  ) {
+    const schedule = this.workerSchedules.get(workerId);
+    if (!schedule) return;
+    if (slotIndex < 0 || slotIndex >= schedule.slots.length) return;
+
+    schedule.slots[slotIndex] = {
+      ...schedule.slots[slotIndex],
+      assignment,
+    };
+
+    this.refreshAvailableWorkers();
+    this.emitState();
+  }
+
+  private clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  private clamp01(value: number) {
+    return this.clamp(value, 0, 1);
+  }
+
   private buildDebtEvents(timeSnapshot: TimeSnapshot): ActiveEventSnapshot[] {
     const debt = this.debtSystem.snapshotState();
     if (debt.isPaidForMonth) return [];
@@ -911,6 +1110,7 @@ export class Game {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
     const reputation = this.reputationSystem.snapshot();
+    const time = this.timeSystem.snapshotState();
 
     const hiredByJob = Array.from(this.hiredWorkerIds.values()).reduce(
       (acc, id) => {
@@ -949,7 +1149,7 @@ export class Game {
       reputation,
       zoom: this.worldView.getScale(),
       activeEvents: this.activeEvents,
-      time: this.timeSystem.snapshotState(),
+      time,
       debt: this.debtSystem.snapshotState(),
       security: this.securitySnapshot,
       guardPresence: this.guardPresence,
@@ -960,6 +1160,7 @@ export class Game {
       buildZone,
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
       attraction: this.attractionSnapshot,
+      workerSchedules: this.buildWorkerScheduleSnapshots(time),
     });
   }
 
@@ -993,6 +1194,15 @@ export class Game {
       simulation: this.simulation.snapshotState(),
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
       people: this.peopleManager.snapshot(),
+      workerSchedules: Array.from(this.workerSchedules.values()).map(
+        (state) => ({
+          workerId: state.workerId,
+          slots: state.slots.map((slot) => ({ ...slot })),
+          fatigue: state.fatigue,
+          hunger: state.hunger,
+          morale: state.morale,
+        })
+      ),
     };
   }
 
@@ -1004,7 +1214,8 @@ export class Game {
     this.money = save.money;
     this.totalClicks = save.totalClicks;
     this.hiredWorkerIds = new Set(save.hiredWorkers);
-    this.syncPeoplePool();
+    this.hydrateWorkerSchedules(save.workerSchedules);
+    this.refreshAvailableWorkers();
 
     this.simulation.hydrate(save.simulation);
     this.timeSystem.hydrate(save.time);
@@ -1029,6 +1240,7 @@ export class Game {
     this.buildingManager.hydrateBuildings(save.buildings, workerCatalog);
     this.peopleManager.hydrate(save.people);
 
+    this.refreshAvailableWorkers();
     this.recomputeAttraction();
     this.recomputeGuardPresence();
     this.selectedBuilding = null;

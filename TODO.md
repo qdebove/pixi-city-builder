@@ -45,7 +45,7 @@
   * Aucune info pour choisir l’offre adaptée
   * Personnes, UI inspection
   * Le joueur adapte ses bâtiments à la demande
-* **[ID-004] Planification travailleuses**
+* [x] **[ID-004] Planification travailleuses**
   * Vue planning métiers principal/secondaire, disponibilité repos/nourriture/services
   * Affectations opaques, risque de sous-staffing
   * Travailleuses, bâtiments de support, UI planning

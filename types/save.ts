@@ -8,7 +8,7 @@ import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 import { TimeSnapshot } from '@/pixi/TimeSystem';
 import { DebtSnapshot } from '@/pixi/DebtSystem';
 import { PersonRole } from './types';
-import { Visitor, Worker } from './data-contract';
+import { Visitor, Worker, WorkerShiftAssignment } from './data-contract';
 
 export interface PersistedBuildingState {
   gridX: number;
@@ -58,6 +58,21 @@ export interface PersistedPeopleState {
   persons: PersistedPersonState[];
 }
 
+export interface PersistedWorkerScheduleSlot {
+  startHour: number;
+  endHour: number;
+  assignment: WorkerShiftAssignment;
+  label?: string;
+}
+
+export interface PersistedWorkerSchedule {
+  workerId: string;
+  slots: PersistedWorkerScheduleSlot[];
+  fatigue: number;
+  hunger: number;
+  morale: number;
+}
+
 export interface GameSaveState {
   version: number;
   timestamp: number;
@@ -76,6 +91,7 @@ export interface GameSaveState {
   simulation: SimulationSaveState;
   activeAssetPacks: string[];
   people?: PersistedPeopleState;
+  workerSchedules?: PersistedWorkerSchedule[];
 }
 
 export interface SavedGameMetadata {
