@@ -30,7 +30,7 @@
 
 #### 🟩 P0 – Bloquant UX / Gameplay
 
-* **[ID-001] HUD ressources/temps/dette**
+* [x] **[ID-001] HUD ressources/temps/dette**
   * Afficher argent, flux mensuel, timer jour/mois, dette mensuelle et échéance
   * Manque de visibilité sur état financier et pression temporelle
   * UI HUD, système temps, finances
