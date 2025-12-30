@@ -5,6 +5,7 @@ import { EventTicker } from '@/components/EventTicker';
 import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
 import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
 import { ReputationPanel } from '@/components/ReputationPanel';
+import { BuildingPlacementPreview } from '@/components/BuildingPlacementPreview';
 import { Game, GameUIState } from '@/pixi/Game';
 import { AttractionSystem } from '@/pixi/AttractionSystem';
 import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
@@ -42,6 +43,7 @@ const Home: React.FC = () => {
       selectedBuildingComputed: null,
       selectedPerson: null,
       isPaused: false,
+      timeScale: 1,
       movingPeopleCount: 0,
       occupantsByType: {},
       peopleByRole: { visitor: 0, staff: 0 },
@@ -236,8 +238,13 @@ const Home: React.FC = () => {
   const handleUpgrade = () =>
     gameRef.current?.upgradeSelectedBuilding();
 
-  const handlePause = () => gameRef.current?.pause();
-  const handleResume = () => gameRef.current?.resume();
+  const setTimeControl = useCallback((mode: 'pause' | 'normal' | 'fast') => {
+    gameRef.current?.setTimeMode(mode);
+  }, []);
+
+  const handlePause = () => setTimeControl('pause');
+  const handleResume = () => setTimeControl('normal');
+  const handleFastForward = () => setTimeControl('fast');
   const handleCloseDetails = () =>
     gameRef.current?.deselectBuilding();
   const handlePayDebt = useCallback(() => {
@@ -458,6 +465,12 @@ const Home: React.FC = () => {
     : daysUntilDue === 0
     ? "Échéance aujourd'hui"
     : `Échéance dans ${daysUntilDue} jour(s)`;
+  const timeMode: 'pause' | 'normal' | 'fast' =
+    gameState.isPaused || gameState.timeScale <= 0.1
+      ? 'pause'
+      : gameState.timeScale >= 2.5
+      ? 'fast'
+      : 'normal';
 
   const infoCards: {
     id: string;
@@ -592,7 +605,7 @@ const Home: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setIsTopBarCollapsed(true)}
                     className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-slate-500"
@@ -605,30 +618,38 @@ const Home: React.FC = () => {
                   >
                     📅 Planning
                   </button>
-                  <button
-                    onClick={handlePause}
-                    disabled={gameState.isPaused}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
-                      ${
-                        gameState.isPaused
-                          ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                          : 'bg-rose-600 hover:bg-rose-500'
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-1 py-1">
+                    <button
+                      onClick={handlePause}
+                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                        timeMode === 'pause'
+                          ? 'border border-rose-400/60 bg-rose-900/50 text-white shadow-lg'
+                          : 'border border-transparent text-slate-200 hover:border-rose-300/50 hover:bg-rose-900/30'
                       }`}
-                  >
-                    ⏸ Pause
-                  </button>
-                  <button
-                    onClick={handleResume}
-                    disabled={!gameState.isPaused}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
-                      ${
-                        !gameState.isPaused
-                          ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-500'
+                    >
+                      ⏸ Pause
+                    </button>
+                    <button
+                      onClick={handleResume}
+                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                        timeMode === 'normal'
+                          ? 'border border-emerald-400/60 bg-emerald-900/50 text-white shadow-lg'
+                          : 'border border-transparent text-slate-200 hover:border-emerald-300/50 hover:bg-emerald-900/30'
                       }`}
-                  >
-                    ▶ Reprendre
-                  </button>
+                    >
+                      ▶ x1
+                    </button>
+                    <button
+                      onClick={handleFastForward}
+                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                        timeMode === 'fast'
+                          ? 'border border-sky-400/60 bg-sky-900/50 text-white shadow-lg'
+                          : 'border border-transparent text-slate-200 hover:border-sky-300/50 hover:bg-sky-900/30'
+                      }`}
+                    >
+                      ⏩ x3
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -839,6 +860,15 @@ const Home: React.FC = () => {
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
+          {draggingType && (
+            <div className="pointer-events-auto mx-auto mb-3 max-w-5xl">
+              <BuildingPlacementPreview
+                type={draggingType}
+                money={gameState.money}
+                daysPerMonth={TIME_SETTINGS.daysPerMonth ?? 30}
+              />
+            </div>
+          )}
           <div className="mx-auto flex max-w-6xl items-end gap-4">
             <div className="pointer-events-auto w-[320px] max-w-full">
               {!isZonePanelCollapsed ? (

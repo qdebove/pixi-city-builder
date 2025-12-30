@@ -58,12 +58,12 @@
   * Affluence non gérée, frustration invisible
   * Bâtiments, personnes, UI bâtiment
   * Le joueur évite saturation et optimise l’accueil
-* **[ID-006] Coûts placement & maintenance**
+* [x] **[ID-006] Coûts placement & maintenance**
   * Affichage coût initial, maintenance mensuelle, personnel requis avant placement
   * Placements à l’aveugle
   * Construction, finances, UI preview
   * Le joueur décide en connaissance de cause
-* **[ID-007] Contrôles temps (pause / x1 / x3)**
+* [x] **[ID-007] Contrôles temps (pause / x1 / x3)**
   * Boutons vitesse et pause liés au tick simulation
   * Difficulté à réagir et à planifier
   * Temps, boucle simulation, HUD
