@@ -19,6 +19,8 @@ import {
 } from '@/pixi/data/save-storage';
 import { ASSET_PACK_PREVIEWS } from '@/pixi/assets/packs';
 import { SavedGameMetadata } from '@/types/save';
+import { WorkerShiftAssignment } from '@/types/data-contract';
+import { WorkerPlanningPanel } from '@/components/WorkerPlanningPanel';
 import React, {
   useCallback,
   useEffect,
@@ -94,6 +96,7 @@ const Home: React.FC = () => {
       },
       activeAssetPacks: [],
       attraction,
+      workerSchedules: [],
     };
   });
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
@@ -113,6 +116,7 @@ const Home: React.FC = () => {
     | { type: 'error'; message: string }
     | null
   >(null);
+  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const dragStateRef = useRef<
     | {
         startX: number;
@@ -174,6 +178,13 @@ const Home: React.FC = () => {
     if (!gameRef.current) return;
     await gameRef.current.applyAssetPacks(packIds);
   }, []);
+
+  const handleScheduleAssign = useCallback(
+    (workerId: string, slotIndex: number, assignment: WorkerShiftAssignment) => {
+      gameRef.current?.updateWorkerSlot(workerId, slotIndex, assignment);
+    },
+    []
+  );
 
   useEffect(() => {
     if (gameContainerRef.current && !gameRef.current) {
@@ -283,7 +294,7 @@ const Home: React.FC = () => {
   ) : null;
 
   const hasDetailPanelOpen = selectionContent !== null;
-  const shouldAutoPause = isMenuOpen || hasDetailPanelOpen;
+  const shouldAutoPause = isMenuOpen || hasDetailPanelOpen || isPlannerOpen;
 
   const autoPauseRef = useRef(false);
   const wasPausedBeforeAuto = useRef(false);
@@ -589,6 +600,12 @@ const Home: React.FC = () => {
                     Réduire
                   </button>
                   <button
+                    onClick={() => setIsPlannerOpen(true)}
+                    className="rounded-lg border border-emerald-600 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-emerald-600"
+                  >
+                    📅 Planning
+                  </button>
+                  <button
                     onClick={handlePause}
                     disabled={gameState.isPaused}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition
@@ -884,6 +901,14 @@ const Home: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {isPlannerOpen && (
+        <WorkerPlanningPanel
+          schedules={gameState.workerSchedules}
+          onAssign={handleScheduleAssign}
+          onClose={() => setIsPlannerOpen(false)}
+        />
+      )}
 
       <MainMenuOverlay
         open={isMenuOpen}
