@@ -59,6 +59,13 @@ const Home: React.FC = () => {
       lastPayment: 0,
       totalPaid: 0,
       monthIndex: 0,
+      paymentDue: Math.max(
+        DEBT_SETTINGS.minimumPayment,
+        Math.ceil(DEBT_SETTINGS.startingBalance * DEBT_SETTINGS.paymentRatio)
+      ),
+      dueDay: DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30,
+      isPaidForMonth: false,
+      missedPayments: 0,
     },
     security: { score: 42, guardCoverage: 0 },
     guardPresence: { roaming: 0, stationed: 0 },
@@ -95,6 +102,11 @@ const Home: React.FC = () => {
     readSavedMetadata()
   );
   const [availableAssetPacks] = useState(ASSET_PACK_PREVIEWS);
+  const [debtFeedback, setDebtFeedback] = useState<
+    | { type: 'success'; message: string }
+    | { type: 'error'; message: string }
+    | null
+  >(null);
   const dragStateRef = useRef<
     | {
         startX: number;
@@ -189,6 +201,12 @@ const Home: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!debtFeedback) return;
+    const timer = window.setTimeout(() => setDebtFeedback(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [debtFeedback]);
+
   const handleSelectBuildingToBuild = (
     type: BuildingType | null
   ) => {
@@ -205,6 +223,28 @@ const Home: React.FC = () => {
   const handleResume = () => gameRef.current?.resume();
   const handleCloseDetails = () =>
     gameRef.current?.deselectBuilding();
+  const handlePayDebt = useCallback(() => {
+    if (!gameRef.current) return;
+
+    const outstanding = gameState.debt.isPaidForMonth ? 0 : gameState.debt.paymentDue;
+    if (outstanding <= 0) {
+      setDebtFeedback({ type: 'error', message: 'Aucune échéance à payer.' });
+      return;
+    }
+    if (gameState.money < outstanding) {
+      setDebtFeedback({
+        type: 'error',
+        message: 'Fonds insuffisants pour régler la dette.',
+      });
+      return;
+    }
+
+    const success = gameRef.current.payDebt();
+    setDebtFeedback({
+      type: success ? 'success' : 'error',
+      message: success ? 'Dette mensuelle réglée.' : 'Le paiement a échoué.',
+    });
+  }, [gameState.debt.isPaidForMonth, gameState.debt.paymentDue, gameState.money]);
 
   const selectedType = gameState.selectedBuildingState
     ? BUILDING_TYPES.find(
@@ -383,6 +423,24 @@ const Home: React.FC = () => {
   const movingCount =
     (gameState.peopleByRole.visitor || 0) +
     (gameState.peopleByRole.staff || 0);
+  const outstandingDebt = gameState.debt.isPaidForMonth ? 0 : gameState.debt.paymentDue;
+  const daysUntilDue = gameState.debt.dueDay - gameState.time.day;
+  const monthlyFlow = gameState.economy.monthIncome - gameState.economy.monthExpenses;
+  const debtSeverity =
+    gameState.debt.isPaidForMonth
+      ? 'text-emerald-200'
+      : daysUntilDue < 0
+      ? 'text-rose-200'
+      : daysUntilDue <= 3
+      ? 'text-amber-200'
+      : 'text-slate-200';
+  const debtSubLabel = gameState.debt.isPaidForMonth
+    ? 'Échéance réglée pour ce mois'
+    : daysUntilDue < 0
+    ? `En retard de ${Math.abs(daysUntilDue)} jour(s)`
+    : daysUntilDue === 0
+    ? "Échéance aujourd'hui"
+    : `Échéance dans ${daysUntilDue} jour(s)`;
 
   const infoCards: {
     id: string;
@@ -553,6 +611,69 @@ const Home: React.FC = () => {
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
+                <p className="text-[11px] uppercase text-slate-400">Argent</p>
+                <p className="text-xl font-semibold text-white">{formatMoney(gameState.money)}</p>
+                <p className="text-xs text-slate-300">Trésorerie mobilisable</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
+                <p className="text-[11px] uppercase text-slate-400">Flux mensuel</p>
+                <p
+                  className={`text-xl font-semibold ${
+                    monthlyFlow >= 0 ? 'text-emerald-200' : 'text-rose-200'
+                  }`}
+                >
+                  {formatMoney(monthlyFlow)} / mois
+                </p>
+                <p className="text-xs text-slate-300">
+                  Revenus : {formatMoney(gameState.economy.monthIncome)} · Dépenses :{' '}
+                  {formatMoney(gameState.economy.monthExpenses)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
+                <p className="text-[11px] uppercase text-slate-400">Horloge</p>
+                <p className="text-xl font-semibold text-white">
+                  Jour {gameState.time.day} / Mois {gameState.time.month}
+                </p>
+                <p className="text-xs text-slate-300">
+                  {gameState.time.hour.toString().padStart(2, '0')}:00 • Année {gameState.time.year}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase text-slate-400">Dette mensuelle</p>
+                    <p className={`text-xl font-semibold ${debtSeverity}`}>
+                      {outstandingDebt > 0 ? formatMoney(outstandingDebt) : 'Payé'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePayDebt}
+                    disabled={
+                      outstandingDebt <= 0 ||
+                      gameState.money < outstandingDebt ||
+                      gameState.isPaused
+                    }
+                    className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
+                      outstandingDebt > 0 && gameState.money >= outstandingDebt && !gameState.isPaused
+                        ? 'border border-emerald-500/60 bg-emerald-600 text-white hover:bg-emerald-500'
+                        : 'border border-slate-700 bg-slate-800 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Payer
+                  </button>
+                </div>
+                <p className="text-xs text-slate-300">{debtSubLabel}</p>
+                <p className="text-[11px] text-slate-400">
+                  Dernier paiement :{' '}
+                  {gameState.debt.lastPayment > 0
+                    ? formatMoney(gameState.debt.lastPayment)
+                    : 'Aucun'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {infoCards.map((card) => (
                 <div
                   key={card.id}
@@ -628,6 +749,20 @@ const Home: React.FC = () => {
           </div>
         )}
       </div>
+
+      {debtFeedback && (
+        <div className="pointer-events-none fixed left-1/2 top-16 z-40 -translate-x-1/2">
+          <div
+            className={`pointer-events-auto rounded-lg border px-4 py-2 text-sm shadow-xl ${
+              debtFeedback.type === 'success'
+                ? 'border-emerald-500/60 bg-emerald-900/70 text-emerald-100'
+                : 'border-rose-500/60 bg-rose-900/70 text-rose-100'
+            }`}
+          >
+            {debtFeedback.message}
+          </div>
+        </div>
+      )}
 
       <EventTicker events={gameState.activeEvents} />
 

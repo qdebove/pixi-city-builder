@@ -11,6 +11,7 @@
     "startingBalance": 5200,
     "monthlyGrowthRate": 0.08,
     "minimumPayment": 350,
-    "paymentRatio": 0.28
+    "paymentRatio": 0.28,
+    "dueDay": 30
   }
 }

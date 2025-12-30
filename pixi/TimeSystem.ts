@@ -80,6 +80,14 @@ export class TimeSystem {
     return { ...this.snapshot, elapsedMs: this.snapshot.elapsedMs + this.carryMs };
   }
 
+  public getMsPerDay(): number {
+    return this.settings.msPerHour * this.settings.hoursPerDay;
+  }
+
+  public getDaysPerMonth(): number {
+    return this.settings.daysPerMonth;
+  }
+
   public reset() {
     this.carryMs = 0;
     this.snapshot = {

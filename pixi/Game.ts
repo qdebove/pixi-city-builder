@@ -140,7 +140,9 @@ export class Game {
     this.skillEngine = new SkillEngine();
     this.eventSystem = new EventSystem();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
-    this.debtSystem = new DebtSystem(DEBT_SETTINGS);
+    const defaultDueDay =
+      DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30;
+    this.debtSystem = new DebtSystem(DEBT_SETTINGS, defaultDueDay);
     this.economySystem = new EconomySystem(ECONOMY_SETTINGS, TIME_SETTINGS);
     this.districtSystem = new DistrictSystem();
     this.buildZoneSystem = new BuildZoneSystem(MAP_SETTINGS);
@@ -283,16 +285,16 @@ export class Game {
 
   private onSimulationTick = (ctx: TickContext) => {
     const eventModifiers = this.eventSystem.update(ctx);
-    this.activeEvents = eventModifiers.activeEvents;
 
     this.selectedBuildingComputed = null;
 
     const timeAdvance = this.timeSystem.advance(ctx.deltaMs);
     if (timeAdvance.monthsAdvanced > 0) {
       for (let i = 0; i < timeAdvance.monthsAdvanced; i++) {
-        const payment = this.debtSystem.processNewMonth();
-        this.money -= payment;
-        this.economySystem.recordExpense(payment);
+        this.debtSystem.markMissedPayment();
+        this.debtSystem.processNewMonth(
+          DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30
+        );
 
         const tax = this.economySystem.processMonthEnd();
         this.money -= tax;
@@ -384,6 +386,9 @@ export class Game {
     });
 
     this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
+
+    const debtEvents = this.buildDebtEvents(this.timeSystem.snapshotState());
+    this.activeEvents = [...eventModifiers.activeEvents, ...debtEvents];
 
     if (eventModifiers.moneyDelta !== 0) {
       this.money += eventModifiers.moneyDelta;
@@ -518,6 +523,20 @@ export class Game {
     this.money -= cost;
     this.economySystem.recordExpense(cost);
     this.drawBuildZone();
+    this.emitState();
+    return true;
+  }
+
+  public payDebt(): boolean {
+    const outstanding = this.debtSystem.getOutstandingPayment();
+    if (outstanding <= 0) return false;
+    if (this.money < outstanding) return false;
+
+    const paid = this.debtSystem.payCurrentDebt();
+    if (paid <= 0) return false;
+
+    this.money -= paid;
+    this.economySystem.recordExpense(paid);
     this.emitState();
     return true;
   }
@@ -724,6 +743,47 @@ export class Game {
 
     this.guardPresence = { roaming: roamingGuards, stationed: stationedGuards };
     return this.guardPresence;
+  }
+
+  private buildDebtEvents(timeSnapshot: TimeSnapshot): ActiveEventSnapshot[] {
+    const debt = this.debtSystem.snapshotState();
+    if (debt.isPaidForMonth) return [];
+
+    const daysUntilDue = debt.dueDay - timeSnapshot.day;
+    const msPerDay = this.timeSystem.getMsPerDay();
+    const remainingMs = Math.max(0, (daysUntilDue + 1) * msPerDay);
+
+    if (daysUntilDue < 0) {
+      return [
+        {
+          id: 'debt-due',
+          instanceId: -1,
+          title: 'Échéance de dette dépassée',
+          description: `Le paiement de ${debt.paymentDue.toLocaleString('fr-FR')}€ n’a pas été effectué.`,
+          remainingMs: msPerDay,
+          durationMs: msPerDay,
+          severity: 'critical',
+          effects: {},
+        },
+      ];
+    }
+
+    if (daysUntilDue <= 3) {
+      return [
+        {
+          id: 'debt-warning',
+          instanceId: -2,
+          title: 'Paiement de dette imminent',
+          description: `Échéance dans ${daysUntilDue} jour(s). Montant dû : ${debt.paymentDue.toLocaleString('fr-FR')}€.`,
+          remainingMs,
+          durationMs: remainingMs,
+          severity: 'warning',
+          effects: {},
+        },
+      ];
+    }
+
+    return [];
   }
 
   private computeGlobalStats() {
