@@ -28,6 +28,8 @@ Risques majeurs identifiés (à valider en code) :
 - app/page.tsx importe et branche une UI riche + des systèmes hors-scope (menus/panels)
 - certains systèmes hors-scope peuvent être couplés au tick principal (EventSystem/AttractionSystem/DistrictSystem)
 - risque de side-effects via imports (ex: systèmes instanciés par défaut)
+- absence de centralisation des feature flags : modules hors-scope instanciés par défaut
+- Game Over dette non implémenté explicitement (prélèvement fin de mois à sécuriser)
 
 ---
 
@@ -42,6 +44,8 @@ D) Isolement : déplacer en `legacy/` si nécessaire (optionnel, à faire seulem
 Fichier de flags :
 
 - `config/features.ts` (racine, compatible alias @/\*)
+- Flags attendus (par défaut `false` hors V0) : `ENABLE_LEGACY_UI`, `ENABLE_RECRUITMENT`, `ENABLE_SKILLS`, `ENABLE_REPUTATION`, `ENABLE_SECURITY`, `ENABLE_EVENTS`, `ENABLE_DISTRICTS`, `ENABLE_ATTRACTION_AI`, `ENABLE_SAVE_MANAGER_UI`, `ENABLE_ASSET_PACK_UI`, `ENABLE_TUTORIAL`.
+- Risques de couplage : Game.ts instancie par défaut AttractionSystem/EventSystem/DistrictSystem/ReputationSystem/SecuritySystem/SkillEngine ; PeopleManager s’appuie sur DecisionAI. Ces modules doivent lire les flags pour rester neutres en V0.
 
 ---
 
@@ -93,8 +97,8 @@ Fichier de flags :
 
 - Statut : SUPPORT→CORE (selon rôle exact)
 - Emplacement : pixi/Game.ts, pixi/WorldView.ts
-- Stratégie : rester, mais s’assurer que seuls les systèmes V0 sont branchés par défaut
-- Validation : une partie V0 tourne sans systèmes hors-scope
+- Stratégie : rester, mais s’assurer que seuls les systèmes V0 sont branchés par défaut (lecture des flags pour Attraction/Event/District/Reputation/Sécurité/Skills). Overlay districts et events doivent être neutralisés quand désactivés.
+- Validation : une partie V0 tourne sans systèmes hors-scope ; pas d’overlay district si flag désactivé
 
 ### 3.2 SUPPORT V0 (conserver minimal)
 
@@ -117,28 +121,28 @@ Fichier de flags :
 
 - Statut : HORS-SCOPE
 - Emplacement : pixi/EventSystem.ts + pixi/data/(unlocks|ui-layout).(ts|json) (si utilisé pour menus)
-- Désactivation : flag ENABLE_EVENTS=false ; ne pas instancier dans Game par défaut
-- Validation : V0 jouable sans ticker/événements
+- Désactivation : flag ENABLE_EVENTS=false ; ne pas instancier dans Game par défaut et retourner des modifiers neutres (x1)
+- Validation : V0 jouable sans ticker/événements, pas de moneyDelta externe
 
 11. DistrictSystem (spécialisation)
 
 - Statut : HORS-SCOPE (pour V0 simplifiée)
 - Emplacement : pixi/DistrictSystem.ts
-- Désactivation : flag ENABLE_DISTRICTS=false
-- Validation : placement & économie OK sans districts
+- Désactivation : flag ENABLE_DISTRICTS=false (zones vides, overlay non dessiné)
+- Validation : placement & économie OK sans districts, multiplicateur x1
 
 12. ReputationSystem / SecuritySystem
 
 - Statut : HORS-SCOPE
 - Emplacement : pixi/ReputationSystem.ts, pixi/SecuritySystem.ts
-- Désactivation : flags ENABLE_REPUTATION / ENABLE_SECURITY = false ; ne pas instancier
+- Désactivation : flags ENABLE_REPUTATION / ENABLE_SECURITY = false ; snapshots neutres, pas de broadcast
 - Validation : aucun panneau/règle réputation/sécurité active en V0
 
 13. AttractionSystem / DecisionAI
 
 - Statut : HORS-SCOPE (V0 = déplacement pseudo-aléatoire simple)
 - Emplacement : pixi/AttractionSystem.ts, pixi/decision/DecisionAI.ts
-- Désactivation : flag ENABLE_ATTRACTION_AI=false
+- Désactivation : flag ENABLE_ATTRACTION_AI=false ; spawn basique + choix pseudo-aléatoire dans PeopleManager
 - Validation : people se déplacent sans IA avancée
 
 14. Skills engine
@@ -161,6 +165,7 @@ Fichier de flags :
 - Emplacement : pixi/data/save-storage.ts
 - Stratégie : garder load/persist minimal si requis, mais désactiver le panneau de gestion
 - Validation : pas de panneau “Save manager” en V0
+- Risque : app/page.tsx charge/écrit automatiquement ; UI de gestion à conditionner via flag ENABLE_SAVE_MANAGER_UI
 
 ---
 
@@ -196,7 +201,6 @@ Fichier de flags :
 ### 4.2 HORS-SCOPE (désactiver mais conserver)
 
 - components/MainMenuOverlay.tsx (menu multi-onglets)
-- components/EconomyPanel.tsx (panel avancé)
 - components/EventTicker.tsx (ticker d’événements)
 - components/PeopleDirectory.tsx (annuaire/gestion population)
 - components/RecruitmentBoard.tsx (recrutement)
@@ -208,6 +212,7 @@ Fichier de flags :
 - components/AssetPackPanel.tsx (packs/assets)
 - components/TutorialPanel.tsx (si lourd)
 - components/InfoImageSlot.tsx (selon usage : souvent SUPPORT, sinon HORS-SCOPE)
+- components/EconomyPanel.tsx (panel/indicateurs avancés)
 
 Désactivation standard :
 
@@ -218,6 +223,8 @@ Désactivation standard :
 Validation :
 
 - Page principale = HUD minimal + placement + affichage simple de la map
+- HUD V0 attendu : argent, date (jour/mois), dette (solde + échéance), état du temps (pause/vitesse) + bouton remboursement dette, bannière Game Over dette.
+- Aucun menu riche/tutoriel si `ENABLE_LEGACY_UI=false` et `ENABLE_TUTORIAL=false`.
 
 ---
 
@@ -227,7 +234,7 @@ Validation :
 
   - Statut : CORE V0 (mais doit devenir la version “simple”)
   - Action : remplacer montage UI riche par “V0 screen”
-  - Validation : aucun import de panels hors-scope dans la page V0
+  - Validation : aucun import de panels hors-scope dans la page V0 ; montage HUD minimal + barre de construction simple
 
 - app/layout.tsx, app/globals.css
   - Statut : SUPPORT V0
@@ -239,3 +246,4 @@ Validation :
 
 - 2025-12-31 : V0 impose Game Over brutal si dette impayée fin de mois (exception V0)
 - 2025-12-31 : menus/panels avancés désactivés par non-montage + feature flags
+- 2025-12-31 : création prévue de `config/features.ts` central (hors-scope à `false`) ; Game/People doivent lire ces flags avant exécution de logique avancée (events/districts/réputation/sécurité/skills/attraction IA/UI legacy)

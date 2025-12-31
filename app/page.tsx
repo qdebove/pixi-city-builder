@@ -1,114 +1,86 @@
 'use client';
-import { BuildingDetails } from '@/components/BuildingDetails';
-import { BuildingSidebar } from '@/components/BuildingSidebar';
-import { EventTicker } from '@/components/EventTicker';
-import { MainMenuOverlay, MenuTab } from '@/components/MainMenuOverlay';
-import { NotificationCenter } from '@/components/NotificationCenter';
-import { PersonDetailsPanel } from '@/components/PersonDetailsPanel';
-import { ReputationPanel } from '@/components/ReputationPanel';
-import { BuildingPlacementPreview } from '@/components/BuildingPlacementPreview';
-import { Game, GameUIState } from '@/pixi/Game';
-import { AttractionSystem } from '@/pixi/AttractionSystem';
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
-import { BUILDING_TYPES, BuildingType } from '@/types/types';
-import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
+import { NotificationCenter } from '@/components/NotificationCenter';
+import { BuildBar } from '@/components/v0/BuildBar';
+import { GameOverBanner } from '@/components/v0/GameOverBanner';
+import { V0Hud } from '@/components/v0/V0Hud';
+import { Game, GameUIState } from '@/pixi/Game';
+import { DebtSystem } from '@/pixi/DebtSystem';
+import { EconomySystem } from '@/pixi/EconomySystem';
+import { ATTRACTION_SETTINGS } from '@/pixi/data/attraction-settings';
 import { ECONOMY_SETTINGS } from '@/pixi/data/economy-settings';
 import {
   clearGameSave,
-  getSaveVersion,
   loadGameSave,
   persistGameSave,
   readSavedMetadata,
 } from '@/pixi/data/save-storage';
-import { ASSET_PACK_PREVIEWS } from '@/pixi/assets/packs';
-import { SavedGameMetadata } from '@/types/save';
-import { WorkerShiftAssignment } from '@/types/data-contract';
-import { WorkerPlanningPanel } from '@/components/WorkerPlanningPanel';
+import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
+import { BuildingType } from '@/types/types';
 import { GameNotification } from '@/types/ui';
-import { EconomySystem } from '@/pixi/EconomySystem';
-import { TutorialPanel } from '@/components/TutorialPanel';
-import { TutorialProgress, TutorialStep, TutorialStepId } from '@/types/tutorial';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
 
-const TUTORIAL_STORAGE_KEY = 'mini-city-tycoon-tutorial-v1';
+const defaultDueDay = DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30;
+const defaultDebtSnapshot = new DebtSystem(DEBT_SETTINGS, defaultDueDay).snapshotState();
+const defaultEconomySnapshot = new EconomySystem(ECONOMY_SETTINGS, TIME_SETTINGS).snapshot(
+  TIME_SETTINGS.startDay ?? 1
+);
+const defaultAttraction = {
+  notoriety: 0,
+  influxPerMinute: ATTRACTION_SETTINGS.basePerMinute,
+  baseRatePerMinute: ATTRACTION_SETTINGS.basePerMinute,
+  reputationContribution: 0,
+  satisfactionContribution: 0,
+  saturationPenalty: 0,
+  factors: [],
+};
 
-const TUTORIAL_STEPS: TutorialStep[] = [
-  {
-    id: 'route',
-    title: 'Tracer une route',
-    description: 'Peignez au moins une route pour ouvrir un accès de base.',
-    reward: 80,
-    ctaLabel: 'Sélectionnez la route puis glissez pour relier deux cases.',
-    ctaHelper: 'Utilisez la barre de construction pour passer en mode peinture.',
+const initialState: GameUIState = {
+  money: 1000,
+  totalClicks: 0,
+  selectedBuildingState: null,
+  selectedBuildingComputed: null,
+  selectedPerson: null,
+  isPaused: false,
+  movingPeopleCount: 0,
+  occupantsByType: {},
+  peopleByRole: { visitor: 0, staff: 0 },
+  occupantsByRole: { visitor: 0, staff: 0 },
+  reputation: { local: 50, premium: 50, regulatoryPressure: 0 },
+  zoom: 1,
+  activeEvents: [],
+  time: {
+    hour: 0,
+    day: TIME_SETTINGS.startDay ?? 1,
+    month: TIME_SETTINGS.startMonth ?? 1,
+    year: TIME_SETTINGS.startYear ?? 1,
+    elapsedMs: 0,
   },
-  {
-    id: 'pleasure',
-    title: 'Construire un bâtiment plaisir',
-    description: 'Placez un commerce pour générer des revenus ponctuels.',
-    reward: 140,
-    ctaLabel: 'Ouvrez les commerces et placez un plan sur la grille.',
-    ctaHelper: 'Assurez un contact route avant de valider.',
+  debt: { ...defaultDebtSnapshot },
+  security: { score: 0, guardCoverage: 0 },
+  guardPresence: { roaming: 0, stationed: 0 },
+  timeScale: 1,
+  hiredWorkers: [],
+  hiredByJob: {},
+  economy: defaultEconomySnapshot,
+  districts: { zones: [] },
+  buildZone: {
+    bounds: { x: 0, y: 0, width: 0, height: 0 },
+    nextCost: 0,
+    expansionsPurchased: 0,
+    maxSize: 0,
   },
-  {
-    id: 'assign',
-    title: 'Planifier une travailleuse',
-    description: 'Assignez un créneau principal ou secondaire dans le planning.',
-    reward: 150,
-    ctaLabel: 'Cliquez sur 📅 Planning puis affectez un créneau.',
-    ctaHelper: 'Validez un slot pour marquer l’étape.',
-  },
-  {
-    id: 'finance',
-    title: 'Ouvrir les finances',
-    description: "Ouvrez l'onglet Économie dans le menu principal.",
-    reward: 90,
-    ctaLabel: 'Menu principal → Économie.',
-    ctaHelper: 'Parcourez les indicateurs sans fermer le jeu.',
-  },
-  {
-    id: 'debt',
-    title: 'Payer la dette',
-    description: 'Règle la mensualité due pour éviter les pénalités.',
-    reward: 200,
-    ctaLabel: 'Dans Dette mensuelle, appuyez sur Payer.',
-    ctaHelper: 'Assurez des fonds disponibles avant validation.',
-  },
-];
-
-const loadTutorialProgress = (): TutorialProgress => {
-  if (typeof window === 'undefined') {
-    return { currentIndex: 0, completed: [] };
-  }
-  const raw = window.localStorage.getItem(TUTORIAL_STORAGE_KEY);
-  if (!raw) return { currentIndex: 0, completed: [] };
-  try {
-    const parsed = JSON.parse(raw) as Partial<TutorialProgress>;
-    if (
-      parsed &&
-      typeof parsed.currentIndex === 'number' &&
-      Array.isArray(parsed.completed)
-    ) {
-      const safeCompleted = parsed.completed.filter((id): id is TutorialStepId =>
-        ['route', 'pleasure', 'assign', 'finance', 'debt'].includes(id)
-      );
-      return {
-        currentIndex: Math.min(
-          TUTORIAL_STEPS.length,
-          Math.max(0, parsed.currentIndex)
-        ),
-        completed: safeCompleted,
-      };
-    }
-  } catch {
-    // ignore malformed storage
-  }
-  return { currentIndex: 0, completed: [] };
+  activeAssetPacks: [],
+  attraction: { ...defaultAttraction },
+  workerSchedules: [],
+  notifications: [],
+  inspectMode: false,
+  inspectHover: null,
+  buildingStats: { total: 0, roads: 0, byCategory: {} },
+  placementHint: null,
+  gameOver: false,
+  gameOverReason: null,
 };
 
 const formatMoney = (value: number) =>
@@ -118,178 +90,16 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 0,
   });
 
-const Home: React.FC = () => {
+export default function Home() {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Game | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const initialTutorialProgress = useMemo(() => loadTutorialProgress(), []);
-
-  const [gameState, setGameState] = useState<GameUIState>(() => {
-    const attraction = new AttractionSystem().snapshotState();
-    const economyPreview = new EconomySystem(
-      ECONOMY_SETTINGS,
-      TIME_SETTINGS
-    ).snapshot(TIME_SETTINGS.startDay ?? 1);
-    return {
-      money: 1000,
-      totalClicks: 0,
-      selectedBuildingState: null,
-      selectedBuildingComputed: null,
-      selectedPerson: null,
-      isPaused: false,
-      timeScale: 1,
-      movingPeopleCount: 0,
-      occupantsByType: {},
-      peopleByRole: { visitor: 0, staff: 0 },
-      occupantsByRole: { visitor: 0, staff: 0 },
-      reputation: {
-        local: 50,
-        premium: 50,
-        regulatoryPressure: 0,
-      },
-      zoom: 1,
-      activeEvents: [],
-      time: {
-        hour: 0,
-        day: TIME_SETTINGS.startDay ?? 1,
-        month: TIME_SETTINGS.startMonth ?? 1,
-        year: TIME_SETTINGS.startYear ?? 1,
-        elapsedMs: 0,
-      },
-      debt: {
-        balance: DEBT_SETTINGS.startingBalance,
-        lastPayment: 0,
-        totalPaid: 0,
-        monthIndex: 0,
-        paymentDue: Math.max(
-          DEBT_SETTINGS.minimumPayment,
-          Math.ceil(DEBT_SETTINGS.startingBalance * DEBT_SETTINGS.paymentRatio)
-        ),
-        dueDay: DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30,
-        isPaidForMonth: false,
-        missedPayments: 0,
-      },
-      security: { score: 42, guardCoverage: 0 },
-      guardPresence: { roaming: 0, stationed: 0 },
-      hiredWorkers: [],
-      hiredByJob: {},
-      economy: economyPreview,
-      districts: { zones: [] },
-      buildZone: {
-        bounds: { x: 0, y: 0, width: 0, height: 0 },
-        nextCost: 0,
-        expansionsPurchased: 0,
-        maxSize: 0,
-      },
-      buildingStats: { total: 0, roads: 0, byCategory: {} },
-      activeAssetPacks: [],
-      attraction,
-      workerSchedules: [],
-      notifications: [],
-      inspectMode: false,
-      inspectHover: null,
-      placementHint: null,
-    };
-  });
-  const [tutorialProgress, setTutorialProgress] = useState<TutorialProgress>(
-    initialTutorialProgress
-  );
-  const [tutorialToast, setTutorialToast] = useState<string | null>(null);
-  const [hasUserScheduled, setHasUserScheduled] = useState(false);
-  const [draggingType, setDraggingType] = useState<BuildingType | null>(
-    null
-  );
-  const [activeInfoCard, setActiveInfoCard] = useState<string | null>(null);
-  const [panelPosition, setPanelPosition] = useState({ x: 12, y: 12 });
-  const [isTopBarCollapsed, setIsTopBarCollapsed] = useState(false);
-  const [isBottomBarCollapsed, setIsBottomBarCollapsed] = useState(false);
-  const [isZonePanelCollapsed, setIsZonePanelCollapsed] = useState(false);
-  const [saveMetadata, setSaveMetadata] = useState<SavedGameMetadata | null>(() =>
-    readSavedMetadata()
-  );
-  const [availableAssetPacks] = useState(ASSET_PACK_PREVIEWS);
-  const [debtFeedback, setDebtFeedback] = useState<
-    | { type: 'success'; message: string }
-    | { type: 'error'; message: string }
-    | null
-  >(null);
-  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
-  const dragStateRef = useRef<
-    | {
-        startX: number;
-        startY: number;
-        panelX: number;
-        panelY: number;
-      }
-    | null
-  >(null);
-
-  const [menuTab, setMenuTab] = useState<MenuTab>('buildings');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isMenuDropdownOpen, setIsMenuDropdownOpen] = useState(false);
-  const menuLauncherRef = useRef<HTMLDivElement | null>(null);
-
-  const openMenu = (tab: MenuTab) => {
-    setMenuTab(tab);
-    setIsMenuOpen(true);
-    setIsMenuDropdownOpen(false);
-  };
-
-  const handleStateChange = useCallback((newState: GameUIState) => {
-    setGameState(newState);
-  }, []);
-
-  const handleHireWorker = useCallback((workerId: string) => {
-    gameRef.current?.hireWorker(workerId);
-  }, []);
-
-  const handleExpandZone = useCallback(() => {
-    gameRef.current?.expandBuildZone();
-  }, []);
-
-  const refreshSaveMetadata = useCallback(() => {
-    setSaveMetadata(readSavedMetadata());
-  }, []);
-
-  const handleSaveGame = useCallback(async () => {
-    if (!gameRef.current) return;
-    await gameRef.current.whenReady();
-    persistGameSave(gameRef.current.getSavePayload());
-    refreshSaveMetadata();
-  }, [refreshSaveMetadata]);
-
-  const handleLoadGame = useCallback(async () => {
-    if (!gameRef.current) return;
-    const save = loadGameSave();
-    if (!save) return;
-    await gameRef.current.loadFromSave(save);
-    refreshSaveMetadata();
-  }, [refreshSaveMetadata]);
-
-  const handleClearSave = useCallback(() => {
-    clearGameSave();
-    refreshSaveMetadata();
-  }, [refreshSaveMetadata]);
-
-  const handleUpdateAssetPacks = useCallback(async (packIds: string[]) => {
-    if (!gameRef.current) return;
-    await gameRef.current.applyAssetPacks(packIds);
-  }, []);
-
-  const handleScheduleAssign = useCallback(
-    (workerId: string, slotIndex: number, assignment: WorkerShiftAssignment) => {
-      gameRef.current?.updateWorkerSlot(workerId, slotIndex, assignment);
-      setHasUserScheduled(true);
-    },
-    [setHasUserScheduled]
-  );
+  const [gameState, setGameState] = useState<GameUIState>(initialState);
+  const [draggingType, setDraggingType] = useState<BuildingType | null>(null);
+  const [saveMetadata, setSaveMetadata] = useState(() => readSavedMetadata());
 
   useEffect(() => {
     if (gameContainerRef.current && !gameRef.current) {
-      gameRef.current = new Game(
-        gameContainerRef.current,
-        handleStateChange
-      );
+      gameRef.current = new Game(gameContainerRef.current, setGameState);
     }
 
     return () => {
@@ -298,7 +108,7 @@ const Home: React.FC = () => {
         gameRef.current = null;
       }
     };
-  }, [handleStateChange]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,998 +126,145 @@ const Home: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!debtFeedback) return;
-    const timer = window.setTimeout(() => setDebtFeedback(null), 2600);
-    return () => window.clearTimeout(timer);
-  }, [debtFeedback]);
+  const persistSnapshot = useCallback(async () => {
+    if (!gameRef.current) return;
+    await gameRef.current.whenReady();
+    persistGameSave(gameRef.current.getSavePayload());
+    setSaveMetadata(readSavedMetadata());
+  }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      TUTORIAL_STORAGE_KEY,
-      JSON.stringify(tutorialProgress)
-    );
-  }, [tutorialProgress]);
+    const handleBeforeUnload = () => {
+      persistSnapshot();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [persistSnapshot]);
 
-  useEffect(() => {
-    if (!tutorialToast) return;
-    const timer = window.setTimeout(() => setTutorialToast(null), 2400);
-    return () => window.clearTimeout(timer);
-  }, [tutorialToast]);
-
-  const handleSelectBuildingToBuild = (
-    type: BuildingType | null
-  ) => {
-    if (gameRef.current) {
+  const handleSelectBuilding = useCallback(
+    (type: BuildingType | null) => {
+      if (!gameRef.current || gameState.gameOver) return;
       gameRef.current.setDragMode(type);
       setDraggingType(type);
-    }
-  };
+    },
+    [gameState.gameOver]
+  );
 
-  const handleUpgrade = () =>
-    gameRef.current?.upgradeSelectedBuilding();
-
-  const setTimeControl = useCallback((mode: 'pause' | 'normal' | 'fast') => {
-    gameRef.current?.setTimeMode(mode);
-  }, []);
-  const handleToggleInspectMode = useCallback(() => {
-    gameRef.current?.setInspectMode(!gameState.inspectMode);
-  }, [gameState.inspectMode]);
-
-  const handlePause = () => setTimeControl('pause');
-  const handleResume = () => setTimeControl('normal');
-  const handleFastForward = () => setTimeControl('fast');
-  const handleCloseDetails = () =>
-    gameRef.current?.deselectBuilding();
+  const handlePause = useCallback(() => gameRef.current?.setTimeMode('pause'), []);
+  const handleResume = useCallback(() => gameRef.current?.setTimeMode('normal'), []);
+  const handleFast = useCallback(() => gameRef.current?.setTimeMode('fast'), []);
   const handlePayDebt = useCallback(() => {
-    if (!gameRef.current) return;
+    if (!gameRef.current || gameState.gameOver) return;
+    gameRef.current.payDebt();
+  }, [gameState.gameOver]);
 
-    const outstanding = gameState.debt.isPaidForMonth ? 0 : gameState.debt.paymentDue;
-    if (outstanding <= 0) {
-      setDebtFeedback({ type: 'error', message: 'Aucune échéance à payer.' });
-      return;
-    }
-    if (gameState.money < outstanding) {
-      setDebtFeedback({
-        type: 'error',
-        message: 'Fonds insuffisants pour régler la dette.',
-      });
-      return;
-    }
-
-    const success = gameRef.current.payDebt();
-    setDebtFeedback({
-      type: success ? 'success' : 'error',
-      message: success ? 'Dette mensuelle réglée.' : 'Le paiement a échoué.',
-    });
-  }, [gameState.debt.isPaidForMonth, gameState.debt.paymentDue, gameState.money]);
-
-  const selectedType = gameState.selectedBuildingState
-    ? BUILDING_TYPES.find(
-        (t) => t.id === gameState.selectedBuildingState!.typeId
-      )
-    : null;
-
-  const formatDebt = () =>
-    `${formatMoney(gameState.debt.balance)} restantes`;
-
-  const handleClosePerson = () => gameRef.current?.deselectPerson();
+  const handleExpandZone = useCallback(() => {
+    if (!gameRef.current || gameState.gameOver) return;
+    gameRef.current.expandBuildZone();
+  }, [gameState.gameOver]);
 
   const handleNotificationAction = useCallback(
     (notification: GameNotification) => {
-      if (!notification.action) return;
-
-      switch (notification.action.type) {
+      if (!gameRef.current) return;
+      switch (notification.action?.type) {
         case 'focus-building':
-          gameRef.current?.focusBuilding(notification.action.buildingId);
+          gameRef.current.focusBuilding(notification.action.buildingId);
           break;
         case 'show-debt':
-          setIsTopBarCollapsed(false);
-          document
-            .getElementById('debt-card')
-            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          break;
-        case 'show-satisfaction':
-          setIsTopBarCollapsed(false);
-          setIsMenuOpen(true);
-          setMenuTab('people');
+          gameRef.current.pause();
           break;
         default:
           break;
       }
-
-      gameRef.current?.acknowledgeNotification(notification.id);
+      gameRef.current.acknowledgeNotification(notification.id);
     },
-    [setIsMenuOpen, setIsTopBarCollapsed, setMenuTab]
+    []
   );
 
   const handleNotificationDismiss = useCallback((id: string) => {
     gameRef.current?.acknowledgeNotification(id);
   }, []);
 
-  const handleQuickReduceSaturation = useCallback(() => {
-    setIsTopBarCollapsed(false);
-    setIsMenuOpen(true);
-    setMenuTab('buildings');
-    gameRef.current?.setInspectMode(true);
-  }, [setIsMenuOpen, setIsTopBarCollapsed, setMenuTab]);
-
-  const handleQuickBoostSatisfaction = useCallback(() => {
-    setIsTopBarCollapsed(false);
-    setIsPlannerOpen(true);
-    setIsMenuOpen(true);
-    setMenuTab('people');
-  }, [setIsMenuOpen, setIsPlannerOpen, setIsTopBarCollapsed, setMenuTab]);
-
-  const selectionContent = gameState.selectedPerson ? (
-    <PersonDetailsPanel person={gameState.selectedPerson} />
-  ) : selectedType && gameState.selectedBuildingState ? (
-    <BuildingDetails
-      type={selectedType}
-      state={gameState.selectedBuildingState}
-      computed={gameState.selectedBuildingComputed}
-      money={gameState.money}
-      onUpgrade={handleUpgrade}
-    />
-  ) : null;
-
-  const hasDetailPanelOpen = selectionContent !== null;
-  const shouldAutoPause = isMenuOpen || hasDetailPanelOpen || isPlannerOpen;
-
-  const autoPauseRef = useRef(false);
-  const wasPausedBeforeAuto = useRef(false);
-
-  useEffect(() => {
-    if (!gameRef.current) return;
-
-    if (shouldAutoPause) {
-      if (!autoPauseRef.current) {
-        wasPausedBeforeAuto.current = gameState.isPaused;
-        autoPauseRef.current = true;
-      }
-
-      if (!gameState.isPaused) {
-        gameRef.current.pause();
-      }
-    } else if (autoPauseRef.current) {
-      if (!wasPausedBeforeAuto.current && gameState.isPaused) {
-        gameRef.current.resume();
-      }
-      autoPauseRef.current = false;
-    }
-  }, [gameState.isPaused, shouldAutoPause]);
-
-  const closeSelection = () => {
-    if (gameState.selectedPerson) {
-      handleClosePerson();
-    } else if (gameState.selectedBuildingState) {
-      handleCloseDetails();
-    }
-  };
-
-  const handleDragMove = useCallback((event: PointerEvent) => {
-    if (!dragStateRef.current || !panelRef.current) return;
-    const { startX, startY, panelX, panelY } = dragStateRef.current;
-    const width = panelRef.current.offsetWidth;
-    const height = panelRef.current.offsetHeight;
-    const maxX = Math.max(8, window.innerWidth - width - 8);
-    const maxY = Math.max(8, window.innerHeight - height - 8);
-    const clampValue = (value: number, max: number) =>
-      Math.min(Math.max(value, 8), max);
-
-    const deltaX = event.clientX - startX;
-    const deltaY = event.clientY - startY;
-
-    setPanelPosition({
-      x: clampValue(panelX + deltaX, maxX),
-      y: clampValue(panelY + deltaY, maxY),
-    });
+  const handleRestart = useCallback(() => {
+    clearGameSave();
+    window.location.reload();
   }, []);
 
-  const endDrag = useCallback(() => {
-    dragStateRef.current = null;
-    window.removeEventListener('pointermove', handleDragMove);
-  }, [handleDragMove]);
-
-  const startDrag = useCallback(
-    (event: React.PointerEvent) => {
-      if (!panelRef.current) return;
-      dragStateRef.current = {
-        startX: event.clientX,
-        startY: event.clientY,
-        panelX: panelPosition.x,
-        panelY: panelPosition.y,
-      };
-      window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', endDrag, { once: true });
-    },
-    [endDrag, handleDragMove, panelPosition.x, panelPosition.y]
-  );
-
-  useEffect(() => {
-    if (!gameState.selectedBuildingState && !gameState.selectedPerson) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPanelPosition({ x: 12, y: 12 });
-    dragStateRef.current = null;
-  }, [gameState.selectedBuildingState, gameState.selectedPerson]);
-
-  useEffect(() => {
-    return () => {
-      window.removeEventListener('pointermove', handleDragMove);
-      window.removeEventListener('pointerup', endDrag);
-    };
-  }, [endDrag, handleDragMove]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!menuLauncherRef.current) return;
-      if (!menuLauncherRef.current.contains(event.target as Node)) {
-        setIsMenuDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const panelScale =
-    gameState.zoom > 0
-      ? Math.max(0.85, Math.min(1.1, 1 / gameState.zoom))
-      : 1;
-
-  const menuOptions: { id: MenuTab; label: string; description: string }[] = [
-    {
-      id: 'buildings',
-      label: 'Bâtiments',
-      description: 'Consulter le catalogue complet et les plans débloqués.',
-    },
-    {
-      id: 'skills',
-      label: 'Compétences',
-      description: 'Arbres, talents et traits clés.',
-    },
-    {
-      id: 'security',
-      label: 'Sécurité',
-      description: 'Indice global, patrouilles et garde dédiée.',
-    },
-    {
-      id: 'recruitment',
-      label: 'Recrutement',
-      description: 'Profils disponibles et pré-recrutement.',
-    },
-    {
-      id: 'people',
-      label: 'Personnes',
-      description: 'Référentiel des visiteurs et du personnel.',
-    },
-  ];
-
-  type AccentTone = 'amber' | 'sky' | 'emerald' | 'violet' | 'rose';
-  const accentHeaderClasses: Record<AccentTone, string> = {
-    amber: 'border-amber-500/50 bg-amber-900/40 text-amber-50',
-    sky: 'border-sky-500/50 bg-sky-900/40 text-sky-50',
-    emerald: 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50',
-    violet: 'border-violet-500/50 bg-violet-900/40 text-violet-50',
-    rose: 'border-rose-500/50 bg-rose-900/40 text-rose-50',
-  };
-
-  const totalHosted =
-    (gameState.occupantsByRole.visitor || 0) +
-    (gameState.occupantsByRole.staff || 0);
-  const movingCount =
-    (gameState.peopleByRole.visitor || 0) +
-    (gameState.peopleByRole.staff || 0);
+  const placementHint = useMemo(() => gameState.placementHint, [gameState.placementHint]);
   const outstandingDebt = gameState.debt.isPaidForMonth ? 0 : gameState.debt.paymentDue;
-  const daysUntilDue = gameState.debt.dueDay - gameState.time.day;
-  const monthlyFlow = gameState.economy.monthIncome - gameState.economy.monthExpenses;
-  const projectedNetAfterDebt = monthlyFlow - outstandingDebt;
-  const daysRemainingInMonth = Math.max(0, (TIME_SETTINGS.daysPerMonth ?? 30) - gameState.time.day);
-  const debtSeverity =
-    gameState.debt.isPaidForMonth
-      ? 'text-emerald-200'
-      : daysUntilDue < 0
-      ? 'text-rose-200'
-      : daysUntilDue <= 3
-      ? 'text-amber-200'
-      : 'text-slate-200';
-  const debtSubLabel = gameState.debt.isPaidForMonth
-    ? 'Échéance réglée pour ce mois'
-    : daysUntilDue < 0
-    ? `En retard de ${Math.abs(daysUntilDue)} jour(s)`
-    : daysUntilDue === 0
-    ? "Échéance aujourd'hui"
-    : `Échéance dans ${daysUntilDue} jour(s)`;
-  const timeMode: 'pause' | 'normal' | 'fast' =
-    gameState.isPaused || gameState.timeScale <= 0.1
-      ? 'pause'
-      : gameState.timeScale >= 2.5
-      ? 'fast'
-      : 'normal';
-  const hasOpenedEconomy =
-    tutorialProgress.completed.includes('finance') ||
-    (isMenuOpen && menuTab === 'economy');
-  const activeStep =
-    tutorialProgress.currentIndex < TUTORIAL_STEPS.length
-      ? TUTORIAL_STEPS[tutorialProgress.currentIndex]
-      : null;
-  const isTutorialFinished = tutorialProgress.currentIndex >= TUTORIAL_STEPS.length;
-  const isStepComplete = useCallback(
-    (stepId: TutorialStepId) => {
-      switch (stepId) {
-        case 'route':
-          return (gameState.buildingStats.roads ?? 0) > 0;
-        case 'pleasure':
-          return (gameState.buildingStats.byCategory['commerce'] ?? 0) > 0;
-        case 'assign':
-          return hasUserScheduled;
-        case 'finance':
-          return hasOpenedEconomy;
-        case 'debt':
-          return gameState.debt.isPaidForMonth;
-        default:
-          return false;
-      }
-    },
-    [
-      gameState.buildingStats,
-      gameState.debt.isPaidForMonth,
-      hasOpenedEconomy,
-      hasUserScheduled,
-    ]
-  );
-  const activeStepComplete = activeStep ? isStepComplete(activeStep.id) : true;
-  const handleAdvanceTutorial = useCallback(() => {
-    if (!activeStep || !activeStepComplete) return;
-    setTutorialProgress((prev) => {
-      const alreadyCompleted = prev.completed.includes(activeStep.id);
-      const completed = alreadyCompleted ? prev.completed : [...prev.completed, activeStep.id];
-      const nextIndex = Math.min(TUTORIAL_STEPS.length, prev.currentIndex + 1);
-      if (!alreadyCompleted && activeStep.reward > 0) {
-        gameRef.current?.grantTutorialReward(activeStep.reward);
-        setTutorialToast(`Prime tutoriel ${formatMoney(activeStep.reward)}`);
-      }
-      return { currentIndex: nextIndex, completed };
-    });
-  }, [activeStep, activeStepComplete]);
-
-  const infoCards: {
-    id: string;
-    title: string;
-    main: string;
-    sub: string;
-    extras: string[];
-    accent: AccentTone;
-  }[] = [
-    {
-      id: 'finances',
-      title: 'Finances',
-      main: formatMoney(gameState.money),
-      sub: 'Trésorerie mobilisable',
-      extras: [
-        `Paiement du mois : ${formatMoney(
-          gameState.debt.lastPayment || DEBT_SETTINGS.minimumPayment
-        )}`,
-        `Dette restante : ${formatDebt()}`,
-        `Total remboursé : ${formatMoney(gameState.debt.totalPaid)}`,
-      ],
-      accent: 'amber',
-    },
-    {
-      id: 'calendrier',
-      title: 'Calendrier',
-      main: `Mois ${gameState.time.month} • Jour ${gameState.time.day}`,
-      sub: `${gameState.time.hour.toString().padStart(2, '0')}:00 local`,
-      extras: [
-        `Année ${gameState.time.year}`,
-        `Temps écoulé : ${(gameState.time.elapsedMs / 1000).toFixed(0)}s`,
-      ],
-      accent: 'sky',
-    },
-    {
-      id: 'population',
-      title: 'Population',
-      main: `${totalHosted.toLocaleString()} hébergés`,
-      sub: `${movingCount.toLocaleString()} en déplacement`,
-      extras: [
-        `Visiteurs hébergés : ${gameState.occupantsByRole.visitor.toLocaleString()}`,
-        `Personnel en poste : ${gameState.occupantsByRole.staff.toLocaleString()}`,
-        `Flux visiteurs : ${gameState.peopleByRole.visitor.toLocaleString()}`,
-        `Flux personnel : ${gameState.peopleByRole.staff.toLocaleString()}`,
-      ],
-      accent: 'emerald',
-    },
-    {
-      id: 'reputation',
-      title: 'Réputation',
-      main: `${gameState.reputation.local.toFixed(1)} locale`,
-      sub: 'Indicateur dominant',
-      extras: [
-        `Premium : ${gameState.reputation.premium.toFixed(1)}`,
-        `Pression régulation : ${gameState.reputation.regulatoryPressure.toFixed(1)}`,
-        `Production totale : ${gameState.totalClicks.toLocaleString()} ticks`,
-      ],
-      accent: 'violet',
-    },
-    {
-      id: 'security',
-      title: 'Sécurité',
-      main: `${gameState.security.score.toFixed(1)} / 100`,
-      sub: `Patrouilles ${gameState.guardPresence.roaming} • Postes ${gameState.guardPresence.stationed}`,
-      extras: [
-        `Couverture : ${gameState.security.guardCoverage.toFixed(1)} zones`,
-        `Personnel recruté : ${gameState.hiredWorkers.length}`,
-        `Équipe en déplacement : ${gameState.peopleByRole.staff.toLocaleString()}`,
-        'Les gardes circulent en trajectoires Manhattan sans diagonale.',
-      ],
-      accent: 'rose',
-    },
-  ];
-
-  type PillTone = 'positive' | 'warning' | 'danger' | 'info';
-  const pillToneClasses: Record<PillTone, string> = {
-    positive: 'border-emerald-500/50 bg-emerald-900/50 text-emerald-50',
-    warning: 'border-amber-400/60 bg-amber-900/60 text-amber-50',
-    danger: 'border-rose-500/60 bg-rose-900/60 text-rose-50',
-    info: 'border-sky-500/50 bg-sky-900/50 text-sky-50',
-  };
-
-  const statusPills: {
-    id: string;
-    label: string;
-    value: string;
-    helper: string;
-    tone: PillTone;
-  }[] = [
-    {
-      id: 'cash',
-      label: 'Trésorerie',
-      value: formatMoney(gameState.money),
-      helper:
-        projectedNetAfterDebt >= 0
-          ? 'Solde après dette positif'
-          : 'Attention : dette dépasse le flux',
-      tone: projectedNetAfterDebt >= 0 ? 'positive' : 'warning',
-    },
-    {
-      id: 'flow',
-      label: 'Flux mensuel',
-      value: `${formatMoney(monthlyFlow)} / mois`,
-      helper: `Projection après dette : ${formatMoney(projectedNetAfterDebt)}`,
-      tone: monthlyFlow >= 0 ? 'info' : 'warning',
-    },
-    {
-      id: 'debt',
-      label: 'Échéance dette',
-      value: outstandingDebt > 0 ? formatMoney(outstandingDebt) : 'Payée',
-      helper: debtSubLabel,
-      tone:
-        outstandingDebt === 0
-          ? 'positive'
-          : daysUntilDue < 0
-          ? 'danger'
-          : daysUntilDue <= 3
-          ? 'warning'
-          : 'info',
-    },
-    {
-      id: 'traffic',
-      label: 'Trafic en cours',
-      value: `${movingCount.toLocaleString()} en déplacement`,
-      helper: `${totalHosted.toLocaleString()} hébergés • ${daysRemainingInMonth} j. restants`,
-      tone: movingCount > totalHosted ? 'info' : 'positive',
-    },
-  ];
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-slate-900 text-white select-none">
-      {/* Barre globale en haut */}
-      <div className="relative z-30">
-        {isTopBarCollapsed ? (
-          <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/95 px-4 py-2">
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold text-sky-400">
-                Mini City Tycoon
-              </span>
-              <span className="text-xs text-slate-400">
-                Tableau réduit
-              </span>
+    <main className="flex min-h-screen flex-col gap-4 bg-slate-950 p-4 text-slate-100">
+      <header className="flex flex-col gap-3">
+        <V0Hud
+          money={gameState.money}
+          time={gameState.time}
+          debt={gameState.debt}
+          isPaused={gameState.isPaused}
+          timeScale={gameState.timeScale}
+          onPause={handlePause}
+          onResume={handleResume}
+          onFast={handleFast}
+          onPayDebt={handlePayDebt}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <BuildZoneIndicator
+            buildZone={gameState.buildZone}
+            money={gameState.money}
+            onExpand={handleExpandZone}
+          />
+          {placementHint && (
+            <div className="rounded-md border border-amber-500/60 bg-amber-900/40 px-3 py-2 text-xs text-amber-100">
+              {placementHint}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsTopBarCollapsed(false)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-500 hover:text-white"
-              >
-                Afficher le tableau
-              </button>
+          )}
+          {saveMetadata && (
+            <div className="ml-auto rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-[11px] text-slate-300">
+              Sauvegarde auto · {new Date(saveMetadata.timestamp).toLocaleTimeString('fr-FR')}
             </div>
-          </div>
-        ) : (
-          <div className="border-b border-slate-800 bg-slate-900/95 px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg font-bold text-sky-400">
-                  Mini City Tycoon
-                </span>
-                <span className="text-xs text-slate-400">
-                  Table de bord synthétique
-                </span>
-              </div>
+          )}
+        </div>
+      </header>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative" ref={menuLauncherRef}>
-                  <button
-                    onClick={() => setIsMenuDropdownOpen((current) => !current)}
-                    className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-sky-500 hover:text-sky-100"
-                  >
-                    Menu principal
-                    <span aria-hidden className="text-slate-300">▾</span>
-                  </button>
-                  {isMenuDropdownOpen && (
-                    <div className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl">
-                      {menuOptions.map((option) => (
-                        <button
-                          key={option.id}
-                          className="w-full rounded-md px-2 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-                          onClick={() => openMenu(option.id)}
-                        >
-                          <p className="font-semibold text-white">{option.label}</p>
-                          <p className="text-[12px] text-slate-300">{option.description}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+      <section className="relative flex flex-1 flex-col gap-3">
+        <div
+          ref={gameContainerRef}
+          className="relative min-h-[640px] w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"
+        />
+      </section>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => setIsTopBarCollapsed(true)}
-                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-slate-500"
-                  >
-                    Réduire
-                  </button>
-                  <button
-                    onClick={() => setIsPlannerOpen(true)}
-                    className="rounded-lg border border-emerald-600 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-emerald-600"
-                  >
-                    📅 Planning
-                  </button>
-                  <button
-                    onClick={handleToggleInspectMode}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-lg transition ${
-                      gameState.inspectMode
-                        ? 'border border-sky-500/70 bg-sky-700 text-white hover:bg-sky-600'
-                        : 'border border-slate-700 bg-slate-800 text-slate-100 hover:border-sky-500 hover:text-white'
-                    }`}
-                  >
-                    🔎 Inspect
-                  </button>
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-1 py-1">
-                    <button
-                      onClick={handlePause}
-                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
-                        timeMode === 'pause'
-                          ? 'border border-rose-400/60 bg-rose-900/50 text-white shadow-lg'
-                          : 'border border-transparent text-slate-200 hover:border-rose-300/50 hover:bg-rose-900/30'
-                      }`}
-                    >
-                      ⏸ Pause
-                    </button>
-                    <button
-                      onClick={handleResume}
-                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
-                        timeMode === 'normal'
-                          ? 'border border-emerald-400/60 bg-emerald-900/50 text-white shadow-lg'
-                          : 'border border-transparent text-slate-200 hover:border-emerald-300/50 hover:bg-emerald-900/30'
-                      }`}
-                    >
-                      ▶ x1
-                    </button>
-                    <button
-                      onClick={handleFastForward}
-                      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
-                        timeMode === 'fast'
-                          ? 'border border-sky-400/60 bg-sky-900/50 text-white shadow-lg'
-                          : 'border border-transparent text-slate-200 hover:border-sky-300/50 hover:bg-sky-900/30'
-                      }`}
-                    >
-                      ⏩ x3
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <BuildBar money={gameState.money} selected={draggingType} onSelect={handleSelectBuilding} />
 
-            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
-              {statusPills.map((pill) => (
-                <div
-                  key={pill.id}
-                  className={`flex flex-col justify-between rounded-xl border px-3 py-2 shadow ${pillToneClasses[pill.tone]}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] uppercase tracking-wide text-slate-100">
-                      {pill.label}
-                    </span>
-                    <span className="rounded-full bg-slate-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-100">
-                      Synthèse
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-lg font-semibold">{pill.value}</p>
-                  <p className="text-[12px] text-slate-100/80">{pill.helper}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
-                <p className="text-[11px] uppercase text-slate-400">Argent</p>
-                <p className="text-xl font-semibold text-white">{formatMoney(gameState.money)}</p>
-                <p className="text-xs text-slate-300">Trésorerie mobilisable</p>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
-                <p className="text-[11px] uppercase text-slate-400">Flux mensuel</p>
-                <p
-                  className={`text-xl font-semibold ${
-                    monthlyFlow >= 0 ? 'text-emerald-200' : 'text-rose-200'
-                  }`}
-                >
-                  {formatMoney(monthlyFlow)} / mois
-                </p>
-                <p className="text-xs text-slate-300">
-                  Revenus : {formatMoney(gameState.economy.monthIncome)} · Dépenses :{' '}
-                  {formatMoney(gameState.economy.monthExpenses)}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Après dette : {formatMoney(projectedNetAfterDebt)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
-                <p className="text-[11px] uppercase text-slate-400">Horloge</p>
-                <p className="text-xl font-semibold text-white">
-                  Jour {gameState.time.day} / Mois {gameState.time.month}
-                </p>
-                <p className="text-xs text-slate-300">
-                  {gameState.time.hour.toString().padStart(2, '0')}:00 • Année {gameState.time.year}
-                </p>
-              </div>
-              <div
-                id="debt-card"
-                className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase text-slate-400">Dette mensuelle</p>
-                    <p className={`text-xl font-semibold ${debtSeverity}`}>
-                      {outstandingDebt > 0 ? formatMoney(outstandingDebt) : 'Payé'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handlePayDebt}
-                    disabled={
-                      outstandingDebt <= 0 ||
-                      gameState.money < outstandingDebt ||
-                      gameState.isPaused
-                    }
-                    className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${
-                      outstandingDebt > 0 && gameState.money >= outstandingDebt && !gameState.isPaused
-                        ? 'border border-emerald-500/60 bg-emerald-600 text-white hover:bg-emerald-500'
-                        : 'border border-slate-700 bg-slate-800 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    Payer
-                  </button>
-                </div>
-                <p className="text-xs text-slate-300">{debtSubLabel}</p>
-                <p className="text-[11px] text-slate-400">
-                  Rappel auto à J-3 pour éviter la pénalité.
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Dernier paiement :{' '}
-                  {gameState.debt.lastPayment > 0
-                    ? formatMoney(gameState.debt.lastPayment)
-                    : 'Aucun'}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {infoCards.map((card) => {
-                const isExpanded = activeInfoCard === card.id;
-                return (
-                  <div
-                    key={card.id}
-                    className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-lg"
-                    onMouseLeave={() => setActiveInfoCard(null)}
-                  >
-                    <div
-                      className={`flex items-start justify-between gap-2 border-b border-slate-800 px-4 py-3 ${accentHeaderClasses[card.accent]}`}
-                    >
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wide text-slate-200/90">
-                          {card.title}
-                        </p>
-                        <p className="text-lg font-semibold text-white">{card.main}</p>
-                        <p className="text-xs text-slate-100/90">{card.sub}</p>
-                      </div>
-                      <button
-                        type="button"
-                        aria-pressed={isExpanded}
-                        className="rounded-md border border-slate-700/70 bg-slate-900/60 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-sky-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
-                        onClick={() =>
-                          setActiveInfoCard((current) =>
-                            current === card.id ? null : card.id
-                          )
-                        }
-                      >
-                        {isExpanded ? 'Masquer' : 'Détails'}
-                      </button>
-                    </div>
-                    <div
-                      className={`space-y-1 border-t border-slate-800 px-4 py-3 text-[12px] transition ${
-                        isExpanded ? 'bg-slate-950/60 text-slate-200' : 'bg-slate-950/30 text-slate-400'
-                      }`}
-                    >
-                      {card.extras.map((extra, index) => (
-                        <p
-                          key={`${card.id}-${index}`}
-                          className="flex items-start gap-2 leading-relaxed"
-                        >
-                          <span className="text-slate-500">↳</span>
-                          <span>{extra}</span>
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <div className="flex items-center gap-6 text-sm text-slate-200">
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase text-slate-500">Flux mensuel</span>
+          <span className="font-semibold">
+            {formatMoney(gameState.economy.monthIncome - gameState.economy.monthExpenses)}
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase text-slate-500">Échéance</span>
+          <span className="font-semibold">
+            {outstandingDebt > 0 ? formatMoney(outstandingDebt) : 'Déjà réglée'}
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase text-slate-500">Population</span>
+          <span className="font-semibold">
+            {gameState.occupantsByRole.visitor + gameState.occupantsByRole.staff} hébergés
+          </span>
+        </div>
       </div>
-
-      {debtFeedback && (
-        <div className="pointer-events-none fixed left-1/2 top-16 z-40 -translate-x-1/2">
-          <div
-            className={`pointer-events-auto rounded-lg border px-4 py-2 text-sm shadow-xl ${
-              debtFeedback.type === 'success'
-                ? 'border-emerald-500/60 bg-emerald-900/70 text-emerald-100'
-                : 'border-rose-500/60 bg-rose-900/70 text-rose-100'
-            }`}
-          >
-            {debtFeedback.message}
-          </div>
-        </div>
-      )}
-      {tutorialToast && (
-        <div className="pointer-events-none fixed left-1/2 top-28 z-40 -translate-x-1/2">
-          <div className="pointer-events-auto rounded-lg border border-emerald-500/60 bg-emerald-900/80 px-4 py-2 text-sm text-emerald-100 shadow-xl">
-            {tutorialToast}
-          </div>
-        </div>
-      )}
 
       <NotificationCenter
         notifications={gameState.notifications}
         onAction={handleNotificationAction}
         onDismiss={handleNotificationDismiss}
       />
-      <EventTicker events={gameState.activeEvents} />
-      {gameState.inspectMode && (
-        <div className="pointer-events-none fixed left-4 top-[140px] z-40 w-80 max-w-full rounded-xl border border-sky-600/70 bg-slate-900/90 p-3 shadow-2xl">
-          <p className="text-sm font-semibold text-white">Mode inspection actif</p>
-          <p className="text-xs text-slate-200">
-            Bâtiments verts = efficaces, rouge = saturation ou sous-staff. Routes rouges = isolées.
-          </p>
-          {gameState.inspectHover ? (
-            <div className="pointer-events-auto mt-2 rounded-lg border border-slate-700 bg-slate-800/80 p-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-white">
-                  {gameState.inspectHover.label}
-                </span>
-                {gameState.inspectHover.connected !== undefined && (
-                  <span
-                    className={`text-[11px] font-semibold ${
-                      gameState.inspectHover.connected ? 'text-emerald-300' : 'text-amber-200'
-                    }`}
-                  >
-                    {gameState.inspectHover.connected ? 'Connecté' : 'Isolé'}
-                  </span>
-                )}
-              </div>
-              {typeof gameState.inspectHover.efficiency === 'number' ? (
-                <p className="text-xs text-slate-200">
-                  Efficacité : {(gameState.inspectHover.efficiency * 100).toFixed(0)}%
-                </p>
-              ) : (
-                <p className="text-xs text-slate-200">Route dédiée à la circulation.</p>
-              )}
-            </div>
-          ) : (
-            <p className="mt-2 text-[11px] text-slate-400">
-              Survolez un bâtiment ou une route pour voir son statut.
-            </p>
-          )}
-        </div>
+
+      {gameState.gameOver && (
+        <GameOverBanner reason={gameState.gameOverReason} onRestart={handleRestart} />
       )}
-      <div className="pointer-events-none fixed left-4 top-[360px] z-30">
-        <TutorialPanel
-          steps={TUTORIAL_STEPS}
-          progress={tutorialProgress}
-          activeStep={activeStep}
-          activeComplete={activeStepComplete}
-          isFinished={isTutorialFinished}
-          onAdvance={handleAdvanceTutorial}
-        />
-      </div>
-      <div className="pointer-events-none fixed right-4 top-[140px] z-30 w-[320px] max-w-full">
-        <ReputationPanel
-          reputation={gameState.reputation}
-          attraction={gameState.attraction}
-          onReduceSaturation={handleQuickReduceSaturation}
-          onBoostSatisfaction={handleQuickBoostSatisfaction}
-        />
-      </div>
-
-      {/* Layout principal */}
-      <div className="relative flex-1 pt-0">
-        <div className="absolute inset-0 bg-slate-950">
-          <div
-            ref={gameContainerRef}
-            className="absolute inset-0 cursor-crosshair"
-          />
-
-          {selectionContent && (
-            <div
-              className="pointer-events-none absolute z-30 flex max-w-full"
-              style={{ left: panelPosition.x, top: panelPosition.y }}
-            >
-              <div
-                className="pointer-events-auto w-[min(440px,calc(100vw-340px))] max-w-lg origin-top-left"
-                style={{ transform: `scale(${panelScale})` }}
-                ref={panelRef}
-              >
-                <div className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/90 shadow-2xl backdrop-blur-md">
-                  <div
-                    className="flex items-center justify-between border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200"
-                    onPointerDown={startDrag}
-                  >
-                    <span>
-                      {gameState.selectedPerson
-                        ? 'Fiche personnage'
-                        : 'Fiche bâtiment'}
-                    </span>
-                    <button
-                      onClick={closeSelection}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      className="rounded-full border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 transition hover:bg-slate-700"
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                  <div className="p-3">{selectionContent}</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
-          {draggingType && (
-            <div className="pointer-events-auto mx-auto mb-3 max-w-5xl">
-              <BuildingPlacementPreview
-                type={draggingType}
-                money={gameState.money}
-                daysPerMonth={TIME_SETTINGS.daysPerMonth ?? 30}
-              />
-            </div>
-          )}
-          {gameState.placementHint && (
-            <div className="pointer-events-none mx-auto mb-2 flex max-w-5xl justify-center">
-              <div className="pointer-events-auto rounded-lg border border-amber-500/70 bg-amber-900/70 px-3 py-2 text-sm font-semibold text-amber-100 shadow-xl">
-                {gameState.placementHint}
-              </div>
-            </div>
-          )}
-          <div className="mx-auto flex max-w-6xl items-end gap-4">
-            <div className="pointer-events-auto w-[320px] max-w-full">
-              {!isZonePanelCollapsed ? (
-                <div className="rounded-xl border border-slate-700 bg-slate-900/90 p-3 shadow-xl">
-                  <div className="mb-2 flex items-center justify-between text-xs text-slate-300">
-                    <span className="font-semibold text-white">Zone de construction</span>
-                    <button
-                      onClick={() => setIsZonePanelCollapsed(true)}
-                      className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-500"
-                    >
-                      Masquer
-                    </button>
-                  </div>
-                  <BuildZoneIndicator
-                    buildZone={gameState.buildZone}
-                    money={gameState.money}
-                    onExpand={handleExpandZone}
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsZonePanelCollapsed(false)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-left text-xs font-semibold text-slate-100 transition hover:border-sky-500 hover:text-white"
-                >
-                  Afficher la zone de build
-                </button>
-              )}
-            </div>
-
-            <div className="pointer-events-auto flex-1">
-              {!isBottomBarCollapsed ? (
-                <div className="mx-auto max-w-4xl">
-                  <div className="mb-2 flex justify-end">
-                    <button
-                      onClick={() => setIsBottomBarCollapsed(true)}
-                      className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-100 transition hover:border-slate-500"
-                    >
-                      Réduire la barre
-                    </button>
-                  </div>
-                  <BuildingSidebar
-                    money={gameState.money}
-                    totalClicks={gameState.totalClicks}
-                    onSelect={handleSelectBuildingToBuild}
-                    draggingMode={draggingType}
-                    onOpenMenu={openMenu}
-                  />
-                </div>
-              ) : (
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => setIsBottomBarCollapsed(false)}
-                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-sky-500 hover:text-white"
-                  >
-                    Afficher la barre de construction
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {isPlannerOpen && (
-        <WorkerPlanningPanel
-          schedules={gameState.workerSchedules}
-          onAssign={handleScheduleAssign}
-          onClose={() => setIsPlannerOpen(false)}
-        />
-      )}
-
-      <MainMenuOverlay
-        open={isMenuOpen}
-        tab={menuTab}
-        onTabChange={setMenuTab}
-        onClose={() => setIsMenuOpen(false)}
-        occupantsByRole={gameState.occupantsByRole}
-        movingPeople={gameState.peopleByRole}
-        money={gameState.money}
-        reputation={gameState.reputation}
-        totalClicks={gameState.totalClicks}
-        security={gameState.security}
-        guardPresence={gameState.guardPresence}
-        hiredWorkers={gameState.hiredWorkers}
-        hiredByJob={gameState.hiredByJob}
-        onHireWorker={handleHireWorker}
-        economy={gameState.economy}
-        districts={gameState.districts}
-        onSaveGame={handleSaveGame}
-        onLoadGame={handleLoadGame}
-        onClearSave={handleClearSave}
-        saveMetadata={saveMetadata}
-        saveVersion={getSaveVersion()}
-        availableAssetPacks={availableAssetPacks}
-        activeAssetPacks={gameState.activeAssetPacks}
-        onUpdateAssetPacks={handleUpdateAssetPacks}
-      />
-    </div>
+    </main>
   );
-};
-
-export default Home;
+}

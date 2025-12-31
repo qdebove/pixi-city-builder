@@ -12,6 +12,7 @@ import { Visitor, Worker } from '@/types/data-contract';
 import { BuildingState } from '@/types/types';
 import { PersistedPeopleState, PersistedPersonState } from '@/types/save';
 import { ATTRACTION_SETTINGS } from './data/attraction-settings';
+import { FEATURES } from '@/config/features';
 
 type PersonBehavior =
   | { kind: 'wander' }
@@ -26,7 +27,8 @@ export class PeopleManager {
   private personFactory: PersonFactory;
   private onPersonSelected?: (selected: SelectedPersonSnapshot) => void;
   private onPersonRemoved?: (id: string) => void;
-  private decisionAI: DecisionAI;
+  private decisionAI: DecisionAI | null;
+  private readonly enableDecisionAI: boolean;
 
   private people: Person[] = [];
   private availableWorkers: Worker[] = [];
@@ -53,7 +55,8 @@ export class PeopleManager {
     this.personFactory = new PersonFactory();
     this.onPersonSelected = onPersonSelected;
     this.onPersonRemoved = onPersonRemoved;
-    this.decisionAI = new DecisionAI();
+    this.enableDecisionAI = FEATURES.ENABLE_ATTRACTION_AI;
+    this.decisionAI = this.enableDecisionAI ? new DecisionAI() : null;
   }
 
   public update(ctx: TickContext) {
@@ -314,6 +317,10 @@ export class PeopleManager {
     worker: Worker,
     candidates: Building[]
   ): EntryDecision | null {
+    if (!this.enableDecisionAI || !this.decisionAI) {
+      const target = this.pickRandomBuilding(candidates, 'staff');
+      return target;
+    }
     return this.decisionAI.chooseBuildingForWorker(worker, candidates);
   }
 
@@ -321,7 +328,26 @@ export class PeopleManager {
     visitor: Visitor,
     candidates: Building[]
   ): EntryDecision | null {
+    if (!this.enableDecisionAI || !this.decisionAI) {
+      const target = this.pickRandomBuilding(candidates, 'visitor');
+      return target;
+    }
     return this.decisionAI.chooseBuildingForVisitor(visitor, candidates);
+  }
+
+  private pickRandomBuilding(
+    candidates: Building[],
+    role: PersonRole
+  ): EntryDecision | null {
+    if (candidates.length === 0) return null;
+    const eligible =
+      role === 'visitor'
+        ? candidates.filter((building) => building.canAcceptVisitor())
+        : candidates.filter((building) => building.hasCapacityFor('staff'));
+    const pool = eligible.length > 0 ? eligible : candidates;
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    const desire = role === 'visitor' ? 0.6 : 0.55;
+    return { building: picked, desire };
   }
 
   private cleanupBehaviors() {
