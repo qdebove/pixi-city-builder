@@ -136,6 +136,66 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
     return tabs.some((item) => item.id === tab) ? tab : defaultTab;
   }, [tab, tabs]);
 
+  type BadgeTone = 'neutral' | 'positive' | 'warning';
+  const badgeToneClasses: Record<BadgeTone, string> = {
+    neutral: 'bg-slate-800/80 text-slate-100 border-slate-700',
+    positive: 'bg-emerald-900/70 text-emerald-100 border-emerald-500/50',
+    warning: 'bg-amber-900/70 text-amber-100 border-amber-500/50',
+  };
+
+  const tabBadges: Partial<Record<MenuTab, { label: string; tone: BadgeTone }[]>> =
+    useMemo(() => {
+      const totalHosted =
+        (occupantsByRole.visitor ?? 0) + (occupantsByRole.staff ?? 0);
+      const netFlow = economy.monthIncome - economy.monthExpenses;
+      return {
+        people: [
+          { label: `${totalHosted.toLocaleString()} présents`, tone: 'neutral' },
+          {
+            label: `${(movingPeople.visitor ?? 0) + (movingPeople.staff ?? 0)} en déplacement`,
+            tone: 'neutral',
+          },
+        ],
+        recruitment: [
+          { label: `${hiredWorkers.length} postes occupés`, tone: 'neutral' },
+          { label: 'Candidats prêts', tone: 'positive' },
+        ],
+        security: [
+          {
+            label: `${security.score.toFixed(1)} / 100`,
+            tone: security.score >= 60 ? 'positive' : 'warning',
+          },
+          {
+            label: `${guardPresence.roaming} patrouilles`,
+            tone: guardPresence.roaming > 0 ? 'positive' : 'warning',
+          },
+        ],
+        economy: [
+          {
+            label: `${netFlow >= 0 ? '+' : ''}${netFlow.toFixed(0)} €/mois`,
+            tone: netFlow >= 0 ? 'positive' : 'warning',
+          },
+        ],
+        mods: [
+          {
+            label: `${activeAssetPacks.length || 0} pack(s) actifs`,
+            tone: activeAssetPacks.length > 0 ? 'positive' : 'neutral',
+          },
+        ],
+      };
+    }, [
+      activeAssetPacks.length,
+      economy.monthExpenses,
+      economy.monthIncome,
+      guardPresence.roaming,
+      hiredWorkers.length,
+      movingPeople.staff,
+      movingPeople.visitor,
+      occupantsByRole.staff,
+      occupantsByRole.visitor,
+      security.score,
+    ]);
+
   if (!open) return null;
 
   return (
@@ -181,6 +241,18 @@ export const MainMenuOverlay: React.FC<MainMenuOverlayProps> = ({
                     <span className="mt-1 rounded-full bg-slate-900/60 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
                       Navigation verticale personnalisable
                     </span>
+                  )}
+                  {tabBadges[item.id as MenuTab] && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {tabBadges[item.id as MenuTab]!.map((badge, index) => (
+                        <span
+                          key={`${item.id}-badge-${index}`}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeToneClasses[badge.tone]}`}
+                        >
+                          {badge.label}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </button>
               );
