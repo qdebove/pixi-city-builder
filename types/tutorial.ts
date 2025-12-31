@@ -5,6 +5,8 @@ export interface TutorialStep {
   title: string;
   description: string;
   reward: number;
+  ctaLabel?: string;
+  ctaHelper?: string;
 }
 
 export interface TutorialProgress {

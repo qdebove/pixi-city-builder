@@ -1,4 +1,5 @@
 import { BuildingType } from '@/types/types';
+import { WORKER_ROSTER } from '@/pixi/data/game-model';
 import React from 'react';
 
 type PreviewProps = {
@@ -40,11 +41,34 @@ export const BuildingPlacementPreview: React.FC<PreviewProps> = ({
   money,
   daysPerMonth,
 }) => {
+  const averageSalaryPerDay =
+    WORKER_ROSTER.length > 0
+      ? WORKER_ROSTER.reduce((sum, worker) => sum + (worker.salaryPerDay ?? 0), 0) /
+        WORKER_ROSTER.length
+      : 0;
+
   const canAfford = money >= type.cost;
   const monthlyMaintenance = Math.max(
     0,
     Math.round((type.maintenancePerDay ?? 0) * daysPerMonth)
   );
+  const monthlyStaffCost = Math.round(type.staffCapacity * averageSalaryPerDay * daysPerMonth);
+  const totalMonthlyCost = monthlyMaintenance + monthlyStaffCost;
+  const cyclesPerDay =
+    type.baseIntervalMs > 0 ? Math.floor((24 * 60 * 60 * 1000) / type.baseIntervalMs) : 0;
+  const activeIncomePerDay = cyclesPerDay * type.baseIncome;
+  const passiveIncomePerDay = Math.max(0, type.dailyPassiveIncome ?? 0);
+  const estimatedMonthlyIncome =
+    type.isRoad ? 0 : Math.round((activeIncomePerDay + passiveIncomePerDay) * daysPerMonth);
+  const netMonthlyImpact = estimatedMonthlyIncome - totalMonthlyCost;
+  const coverageRatio =
+    totalMonthlyCost > 0 ? Math.min(1, Math.max(0, estimatedMonthlyIncome / totalMonthlyCost)) : 1;
+  const impactTone =
+    netMonthlyImpact >= 0
+      ? 'text-emerald-200'
+      : netMonthlyImpact > -totalMonthlyCost
+      ? 'text-amber-200'
+      : 'text-rose-200';
 
   return (
     <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4 shadow-2xl backdrop-blur">
@@ -64,7 +88,7 @@ export const BuildingPlacementPreview: React.FC<PreviewProps> = ({
         </span>
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-3">
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Coût initial"
           value={formatMoney(type.cost)}
@@ -72,9 +96,10 @@ export const BuildingPlacementPreview: React.FC<PreviewProps> = ({
           highlight={canAfford ? 'normal' : 'alert'}
         />
         <StatCard
-          label="Maintenance mensuelle"
-          value={formatMoney(monthlyMaintenance)}
-          helper={`${formatMoney(type.maintenancePerDay ?? 0)} / jour`}
+          label="Coût mensuel"
+          value={formatMoney(totalMonthlyCost)}
+          helper={`Maintenance ${formatMoney(monthlyMaintenance)} + personnel ${formatMoney(monthlyStaffCost)}`}
+          highlight={totalMonthlyCost > 0 ? 'normal' : 'alert'}
         />
         <StatCard
           label="Personnel requis"
@@ -91,6 +116,32 @@ export const BuildingPlacementPreview: React.FC<PreviewProps> = ({
               : 'Support'
           }
         />
+        <StatCard
+          label="Revenu estimé"
+          value={formatMoney(estimatedMonthlyIncome)}
+          helper={
+            type.isRoad
+              ? 'Pas de revenus directs'
+              : `${formatMoney(activeIncomePerDay)} / jour (cycle + passif)`
+          }
+        />
+      </div>
+
+      <div className="mt-3 space-y-2 rounded-xl border border-slate-700/80 bg-slate-900/80 p-3">
+        <div className="flex items-center justify-between text-sm font-semibold text-white">
+          <span>Impact sur flux mensuel</span>
+          <span className={impactTone}>{formatMoney(netMonthlyImpact)} / mois</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+          <div
+            className={`h-full ${netMonthlyImpact >= 0 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+            style={{ width: `${Math.round(coverageRatio * 100)}%` }}
+          />
+        </div>
+        <p className="text-[11px] text-slate-400">
+          Estimation basée sur cadence ({cyclesPerDay} cycles/jour) et revenus passifs. Ajustez le
+          staff pour limiter la saturation.
+        </p>
       </div>
     </div>
   );
