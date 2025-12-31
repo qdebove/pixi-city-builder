@@ -11,6 +11,24 @@ Ce document définit les règles **obligatoires** qu’un agent doit respecter p
 - **Data-driven en priorité** : pas d’exemples en dur quand une définition JSON/contrat suffit.
 - **Déterminisme et traçabilité** : chaque calcul doit être explicable et loggable.
 
+### Process V0 — Audit obligatoire (SCOPE_AUDIT.md)
+
+Pour toute simplification / réduction de périmètre (V0) :
+
+- `GAME_V0_CONTRACT.md` définit le **périmètre exécutable V0** (priorité sur les fichiers de backlog).
+- `SCOPE_AUDIT.md` est **obligatoire** :
+  - inventorier les systèmes/features existants,
+  - classer : CORE V0 / SUPPORT V0 / HORS-SCOPE,
+  - indiquer les fichiers/dossiers,
+  - définir la méthode de désactivation (feature flags / non-montage / route non branchée),
+  - lister les risques de couplage.
+
+Règle stricte :
+
+- **Aucune désactivation/refactor “périmètre” n’est autorisée sans mise à jour préalable de `SCOPE_AUDIT.md`.**
+- Toute feature HORS-SCOPE doit être **désactivée proprement sans suppression**, réactivable ultérieurement.
+- Les fichiers TODO (TODO.md, TODO-UX.md, notes) sont du **backlog post-V0** : ne pas implémenter en V0.
+
 ---
 
 ## 2) Stack & qualité TypeScript
@@ -202,20 +220,3 @@ Effets visuels :
   - pourquoi,
   - quels invariants sont garantis.
 - Si une décision implique un compromis : expliciter le compromis et l’alternative.
-
----
-
-## 13) Périmètre d’exécution — V0
-
-Pour la V0, un fichier `GAME_V0_CONTRACT.md` définit le **périmètre fonctionnel exact à implémenter**.
-
-Règles spécifiques :
-
-- Le contrat V0 **prime sur les documents de backlog** (TODO.md, TODO-UX.md, notes diverses).
-- Toute fonctionnalité hors périmètre V0 doit être :
-  - désactivée proprement (feature flags, modules non montés),
-  - conservée dans le codebase (non supprimée),
-  - réactivable ultérieurement.
-- La simplicité, la lisibilité et la stabilité priment sur l’exhaustivité fonctionnelle.
-
-Toute contradiction apparente entre la vision long terme et le contrat V0 doit être résolue **en faveur du contrat V0**.

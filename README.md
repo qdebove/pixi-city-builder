@@ -279,22 +279,25 @@ Les visiteurs :
 
 ---
 
-## 1️⃣2️⃣ Exception V0 — Règle de dette et Game Over
+## 1️⃣2️⃣ Exception V0 — Dette & Game Over brutal
 
-Dans le cadre de la **V0 (vertical slice jouable)**, une règle exceptionnelle est appliquée :
+Pour la **V0 (vertical slice jouable)**, une règle exceptionnelle s’applique :
 
-- Une **dette mensuelle fixe** est prélevée automatiquement en fin de mois.
-- Le joueur peut **rembourser manuellement** tout ou partie de la dette avant cette échéance.
-- **Si, lors du prélèvement automatique de fin de mois, les fonds sont insuffisants : la partie se termine immédiatement (Game Over brutal).**
+- Une **dette mensuelle** est prélevée automatiquement en **fin de mois**.
+- Le joueur peut **rembourser manuellement** la dette avant l’échéance.
+- **Si, lors du prélèvement de fin de mois, les fonds sont insuffisants : Game Over brutal immédiat.**
 
-Cette règle constitue une **exception volontaire** à la philosophie long terme du jeu (qui vise des échecs progressifs et récupérables).  
-Elle est **limitée strictement à la V0** afin de :
+Cette règle est une **exception volontaire limitée à la V0** (afin de simplifier la simulation et d’obtenir une condition de fin nette et testable).  
+Elle pourra être remplacée par des échecs progressifs récupérables dans des versions ultérieures.
 
-- simplifier la simulation,
-- clarifier les boucles économiques,
-- disposer d’une condition de fin nette et testable.
+---
 
-Cette règle pourra être remplacée ou assouplie dans des versions ultérieures.
+## 1️⃣3️⃣ Process V0
+
+La V0 est pilotée par :
+
+- `GAME_V0_CONTRACT.md` : périmètre exécutable (ce qui est autorisé/interdit en V0)
+- `SCOPE_AUDIT.md` : inventaire des systèmes existants (CORE/SUPPORT/HORS-SCOPE) + stratégie de désactivation réversible
 
 ---
 
@@ -313,7 +316,7 @@ Cette règle pourra être remplacée ou assouplie dans des versions ultérieures
 
 ---
 
-## 1️⃣2️⃣ TODO — Avancement du projet
+## 1️⃣4️⃣ TODO — Avancement du projet
 
 ### ✅ Fondations déjà en place
 
@@ -352,5 +355,3 @@ Cette règle pourra être remplacée ou assouplie dans des versions ultérieures
 > Une simulation de gestion adulte, élégante, systémique et modulaire,  
 > où chaque entité est calculable et observable,  
 > et où le moteur vit indépendamment de son habillage graphique.
-
----
