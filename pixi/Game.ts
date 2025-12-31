@@ -7,6 +7,7 @@ import {
   GameSaveState,
   PersistedBuildingState,
   PersistedWorkerSchedule,
+  EventSystemSave,
 } from '@/types/save';
 import { GameNotification, SelectedPersonSnapshot } from '@/types/ui';
 import {
@@ -25,6 +26,7 @@ import {
   CELL_SIZE,
   PersonRole,
 } from '../types/types';
+import { FEATURES } from '@/config/features';
 import { BASE_ASSET_REGISTRY } from './assets/registry';
 import { SpriteResolver } from './assets/SpriteResolver';
 import { AttractionSnapshot, AttractionSystem } from './AttractionSystem';
@@ -32,6 +34,7 @@ import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
 import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
 import { ECONOMY_SETTINGS } from './data/economy-settings';
+import { ATTRACTION_SETTINGS } from './data/attraction-settings';
 import { WORKER_ROSTER } from './data/game-model';
 import { MAP_SETTINGS } from './data/map-settings';
 import { computeWorkerCost } from './data/recruitment';
@@ -40,7 +43,7 @@ import { createDefaultSchedule } from './data/worker-schedules';
 import { DebtSnapshot, DebtSystem } from './DebtSystem';
 import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
 import { EconomySnapshot, EconomySystem } from './EconomySystem';
-import { ActiveEventSnapshot, EventSystem } from './EventSystem';
+import { ActiveEventSnapshot, EventModifiers, EventSystem } from './EventSystem';
 import { FloatingText } from './FloatingText';
 import { IncomePulse } from './IncomePulse';
 import { NotificationCenter } from './NotificationCenter';
@@ -54,6 +57,37 @@ import { TimeSnapshot, TimeSystem } from './TimeSystem';
 import { WorldView } from './WorldView';
 
 const SAVE_VERSION = 1;
+const DEFAULT_REPUTATION: ReputationSnapshot = {
+  local: 50,
+  premium: 50,
+  regulatoryPressure: 0,
+};
+const DEFAULT_SECURITY: SecuritySnapshot = {
+  score: 0,
+  guardCoverage: 0,
+};
+const DEFAULT_ATTRACTION: AttractionSnapshot = {
+  notoriety: 0,
+  influxPerMinute: ATTRACTION_SETTINGS.basePerMinute,
+  baseRatePerMinute: ATTRACTION_SETTINGS.basePerMinute,
+  reputationContribution: 0,
+  satisfactionContribution: 0,
+  saturationPenalty: 0,
+  factors: [],
+};
+const NEUTRAL_EVENT_MODIFIERS: EventModifiers = {
+  incomeMultiplier: 1,
+  spawnIntervalMultiplier: 1,
+  reputationDelta: { local: 0, premium: 0, regulatoryPressure: 0 },
+  moneyDelta: 0,
+  activeEvents: [],
+};
+const EMPTY_DISTRICT_SNAPSHOT: DistrictSnapshot = { zones: [] };
+const EMPTY_EVENT_SAVE: EventSystemSave = {
+  active: [],
+  nextEventAtMs: 0,
+  nextInstanceId: 0,
+};
 
 export interface SelectedBuildingComputed {
   incomePerTick: number;
@@ -113,6 +147,8 @@ export interface GameUIState {
   inspectHover: InspectHoverSnapshot | null;
   buildingStats: BuildingStatsSnapshot;
   placementHint: string | null;
+  gameOver: boolean;
+  gameOverReason: string | null;
 }
 
 type WorkerScheduleState = {
@@ -135,14 +171,15 @@ export class Game {
   private districtSystem: DistrictSystem;
   private buildZoneSystem: BuildZoneSystem;
   private spriteResolver: SpriteResolver;
-  private reputationSystem: ReputationSystem;
-  private attractionSystem: AttractionSystem;
+  private reputationSystem: ReputationSystem | null;
+  private reputationSnapshot: ReputationSnapshot = { ...DEFAULT_REPUTATION };
+  private attractionSystem: AttractionSystem | null;
   private attractionSnapshot: AttractionSnapshot;
-  private skillEngine: SkillEngine;
-  private eventSystem: EventSystem;
+  private skillEngine: SkillEngine | null;
+  private eventSystem: EventSystem | null;
   private notificationCenter: NotificationCenter;
-  private securitySystem: SecuritySystem;
-  private securitySnapshot: SecuritySnapshot;
+  private securitySystem: SecuritySystem | null;
+  private securitySnapshot: SecuritySnapshot = { ...DEFAULT_SECURITY };
   private guardPresence = { roaming: 0, stationed: 0 };
   private hiredWorkerIds = new Set<string>();
   private lastReputationBroadcast: ReputationSnapshot | null = null;
@@ -178,6 +215,9 @@ export class Game {
   private readyPromise: Promise<void>;
   private workerSchedules = new Map<string, WorkerScheduleState>();
   private buildingSaturationTracker = new Map<string, { startedAt: number; lastSeen: number }>();
+  private isGameOver = false;
+  private gameOverReason: string | null = null;
+  private readonly features = FEATURES;
 
   constructor(
     container: HTMLDivElement,
@@ -194,21 +234,23 @@ export class Game {
         : [],
     };
     this.spriteResolver = new SpriteResolver(this.assetRegistry);
-    this.reputationSystem = new ReputationSystem();
-    this.attractionSystem = new AttractionSystem();
-    this.attractionSnapshot = this.attractionSystem.snapshotState();
-    this.skillEngine = new SkillEngine();
-    this.eventSystem = new EventSystem();
+    this.reputationSystem = this.features.ENABLE_REPUTATION ? new ReputationSystem() : null;
+    this.reputationSnapshot = this.reputationSystem?.snapshot() ?? { ...DEFAULT_REPUTATION };
+    this.attractionSystem = this.features.ENABLE_ATTRACTION_AI ? new AttractionSystem() : null;
+    this.attractionSnapshot =
+      this.attractionSystem?.snapshotState() ?? { ...DEFAULT_ATTRACTION };
+    this.skillEngine = this.features.ENABLE_SKILLS ? new SkillEngine() : null;
+    this.eventSystem = this.features.ENABLE_EVENTS ? new EventSystem() : null;
     this.notificationCenter = new NotificationCenter();
     this.timeSystem = new TimeSystem(TIME_SETTINGS);
     const defaultDueDay =
       DEBT_SETTINGS.dueDay ?? TIME_SETTINGS.daysPerMonth ?? 30;
     this.debtSystem = new DebtSystem(DEBT_SETTINGS, defaultDueDay);
     this.economySystem = new EconomySystem(ECONOMY_SETTINGS, TIME_SETTINGS);
-    this.districtSystem = new DistrictSystem();
+    this.districtSystem = new DistrictSystem(this.features.ENABLE_DISTRICTS);
     this.buildZoneSystem = new BuildZoneSystem(MAP_SETTINGS);
-    this.securitySystem = new SecuritySystem();
-    this.securitySnapshot = this.securitySystem.snapshot();
+    this.securitySystem = this.features.ENABLE_SECURITY ? new SecuritySystem() : null;
+    this.securitySnapshot = this.securitySystem?.snapshot() ?? { ...DEFAULT_SECURITY };
 
     this.app = new Application();
     this.simulation = new SimulationClock({
@@ -259,8 +301,10 @@ export class Game {
 
     this.syncPeoplePool();
 
-    this.districtSystem.generateZones();
-    this.drawDistricts();
+    if (this.features.ENABLE_DISTRICTS) {
+      this.districtSystem.generateZones();
+      this.drawDistricts();
+    }
     this.drawBuildZone();
     //this.recomputeAttraction();
 
@@ -303,7 +347,10 @@ export class Game {
   private drawDistricts() {
     if (this.districtOverlay) {
       this.districtOverlay.destroy();
+      this.districtOverlay = undefined;
     }
+
+    if (!this.features.ENABLE_DISTRICTS) return;
 
     const overlay = new Graphics();
     overlay.zIndex = -2;
@@ -451,13 +498,17 @@ export class Game {
   private onFrameUpdate = () => {
     this.simulation.step(
       this.app.ticker.deltaMS * Math.max(0.1, this.timeScale),
-      this.isPaused
+      this.isPaused || this.isGameOver
     );
   };
 
   private onSimulationTick = (ctx: TickContext) => {
+    if (this.isGameOver) return;
+
     this.notificationCenter.prune(ctx.nowMs);
-    const eventModifiers = this.eventSystem.update(ctx);
+    const eventModifiers = this.eventSystem
+      ? this.eventSystem.update(ctx)
+      : NEUTRAL_EVENT_MODIFIERS;
 
     this.selectedBuildingComputed = null;
 
@@ -494,10 +545,18 @@ export class Game {
       }
     }
 
+    const timeSnapshot = this.timeSystem.snapshotState();
+    this.handleDebtDue(timeSnapshot);
+    if (this.isGameOver) {
+      this.emitState();
+      return;
+    }
+
     this.buildingManager.getBuildings().forEach((building) => {
-      const skillSnapshot = building.type.isRoad
-        ? null
-        : this.skillEngine.computeBuildingSnapshot(building, ctx.tick);
+      const skillSnapshot =
+        this.skillEngine && !building.type.isRoad
+          ? this.skillEngine.computeBuildingSnapshot(building, ctx.tick)
+          : null;
 
       const districtMultiplier = this.districtSystem.getIncomeMultiplier(building);
       const districtZone = this.districtSystem.getDistrictForBuilding(building);
@@ -549,27 +608,44 @@ export class Game {
     this.peopleManager.update(ctx);
     const visitorSentiment = this.computeVisitorSentiment();
     const visitorSaturation = this.computeVisitorSaturation();
+    const movingPeopleCount = this.peopleManager.getPeopleCount();
+    const currentReputation =
+      this.reputationSystem?.snapshot() ?? this.reputationSnapshot;
 
     const { roaming: roamingGuards, stationed: stationedGuards } =
       this.recomputeGuardPresence();
-    this.securitySnapshot = this.securitySystem.update({
-      roamingGuardCount: roamingGuards,
-      stationedGuards,
-      movingPeople: this.peopleManager.getPeopleCount(),
-      reputation: this.reputationSystem.snapshot(),
-      deltaMs: ctx.deltaMs,
-    });
+    if (this.securitySystem && this.features.ENABLE_SECURITY) {
+      this.securitySnapshot = this.securitySystem.update({
+        roamingGuardCount: roamingGuards,
+        stationedGuards,
+        movingPeople: movingPeopleCount,
+        reputation: currentReputation,
+        deltaMs: ctx.deltaMs,
+      });
+    } else {
+      this.securitySnapshot = { ...DEFAULT_SECURITY };
+    }
 
-    this.reputationSystem.update({
-      buildings: this.buildingManager.getBuildings(),
-      movingPeople: this.peopleManager.getPeopleCountByRole(),
-      deltaMs: ctx.deltaMs,
-    });
+    if (this.reputationSystem && this.features.ENABLE_REPUTATION) {
+      this.reputationSystem.update({
+        buildings: this.buildingManager.getBuildings(),
+        movingPeople: this.peopleManager.getPeopleCountByRole(),
+        deltaMs: ctx.deltaMs,
+      });
 
-    this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
-    this.recomputeAttraction(visitorSentiment, visitorSaturation);
+      this.reputationSystem.applyExternalDelta(eventModifiers.reputationDelta);
+      this.reputationSnapshot = this.reputationSystem.snapshot();
+    } else {
+      this.reputationSnapshot = { ...DEFAULT_REPUTATION };
+    }
 
-    const timeSnapshot = this.timeSystem.snapshotState();
+    if (this.features.ENABLE_ATTRACTION_AI && this.attractionSystem) {
+      this.recomputeAttraction(visitorSentiment, visitorSaturation);
+    } else {
+      this.attractionSnapshot = { ...DEFAULT_ATTRACTION };
+      this.peopleManager.setBaseInflux(this.attractionSnapshot.influxPerMinute);
+    }
+
     const debtEvents = this.buildDebtEvents(timeSnapshot);
     this.activeEvents = [...eventModifiers.activeEvents, ...debtEvents];
     this.evaluateNotifications(ctx, timeSnapshot, visitorSentiment);
@@ -633,7 +709,7 @@ export class Game {
   };
 
   private onPointerDown(e: FederatedPointerEvent) {
-    if (this.isPaused) return;
+    if (this.isPaused || this.isGameOver) return;
 
     if (e.button === 2) {
       this.setDragMode(null);
@@ -748,7 +824,7 @@ export class Game {
   }
 
   public tryPlaceBuilding(globalPos: Point): boolean {
-    if (this.isPaused) return false;
+    if (this.isPaused || this.isGameOver) return false;
 
     const type = this.buildingManager.getDraggingMode();
     if (!type) return false;
@@ -834,6 +910,7 @@ export class Game {
   }
 
   public payDebt(): boolean {
+    if (this.isGameOver) return false;
     const outstanding = this.debtSystem.getOutstandingPayment();
     if (outstanding <= 0) return false;
     if (this.money < outstanding) return false;
@@ -845,6 +922,36 @@ export class Game {
     this.economySystem.recordExpense(paid, 'debt');
     this.emitState();
     return true;
+  }
+
+  private handleDebtDue(timeSnapshot: TimeSnapshot) {
+    const debt = this.debtSystem.snapshotState();
+    if (this.isGameOver || debt.isPaidForMonth) return;
+
+    if (timeSnapshot.day >= debt.dueDay) {
+      const outstanding = this.debtSystem.getOutstandingPayment();
+      if (outstanding <= 0) return;
+
+      if (this.money >= outstanding) {
+        const paid = this.debtSystem.payCurrentDebt();
+        if (paid > 0) {
+          this.money -= paid;
+          this.economySystem.recordExpense(paid, 'debt');
+        }
+      } else {
+        this.triggerGameOver('Dette impayée : fonds insuffisants.');
+      }
+    }
+  }
+
+  private triggerGameOver(reason: string) {
+    this.isGameOver = true;
+    this.gameOverReason = reason;
+    this.isPaused = true;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this.pauseStartedAt = this.pauseStartedAt ?? now;
+    this.peopleManager.pauseAll();
+    this.emitState();
   }
 
   public grantTutorialReward(amount: number): number {
@@ -988,6 +1095,7 @@ export class Game {
   }
 
   public setDragMode(type: BuildingType | null) {
+    if (this.isGameOver) return;
     this.buildingManager.setDragMode(type);
     if (type) {
       this.deselectPerson();
@@ -1067,6 +1175,10 @@ export class Game {
   }
 
   public setTimeMode(mode: 'pause' | 'normal' | 'fast') {
+    if (this.isGameOver) {
+      this.pause();
+      return;
+    }
     if (mode === 'pause') {
       this.pause();
       return;
@@ -1519,6 +1631,7 @@ export class Game {
   }
 
   private broadcastReputationChange(reputation: ReputationSnapshot) {
+    if (!this.features.ENABLE_REPUTATION) return;
     if (typeof window === 'undefined') return;
 
     if (this.lastReputationBroadcast) {
@@ -1550,7 +1663,13 @@ export class Game {
     visitorSentiment: ReturnType<Game['computeVisitorSentiment']>,
     visitorSaturation: ReturnType<Game['computeVisitorSaturation']>
   ) {
-    const reputationSnapshot = this.reputationSystem.snapshot();
+    const reputationSnapshot =
+      this.reputationSystem?.snapshot() ?? this.reputationSnapshot;
+    if (!this.attractionSystem) {
+      this.attractionSnapshot = { ...DEFAULT_ATTRACTION };
+      return;
+    }
+
     this.attractionSnapshot = this.attractionSystem.update({
       reputation: reputationSnapshot,
       averageSatisfaction: visitorSentiment.average,
@@ -1569,7 +1688,7 @@ export class Game {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
     const buildingStats = this.computeBuildingStats();
-    const reputation = this.reputationSystem.snapshot();
+    const reputation = this.reputationSystem?.snapshot() ?? this.reputationSnapshot;
     const time = this.timeSystem.snapshotState();
 
     const hiredByJob = Array.from(this.hiredWorkerIds.values()).reduce(
@@ -1585,9 +1704,9 @@ export class Game {
     );
 
     const economy = this.economySystem.snapshot(time.day);
-    const districts = this.districtSystem.snapshot(
-      this.buildingManager.getBuildings()
-    );
+    const districts = this.features.ENABLE_DISTRICTS
+      ? this.districtSystem.snapshot(this.buildingManager.getBuildings())
+      : EMPTY_DISTRICT_SNAPSHOT;
     const buildZone = this.buildZoneSystem.snapshot();
     this.broadcastReputationChange(reputation);
 
@@ -1635,12 +1754,19 @@ export class Game {
       inspectHover: this.inspectHover,
       buildingStats,
       placementHint: this.placementHint,
+      gameOver: this.isGameOver,
+      gameOverReason: this.gameOverReason,
     });
   }
 
   public getSavePayload(): GameSaveState {
     const timeSnapshot = this.timeSystem.snapshotState();
     const economySnapshot = this.economySystem.snapshot(timeSnapshot.day);
+    const reputationSnapshot = this.reputationSystem?.snapshot() ?? this.reputationSnapshot;
+    const districtSave = this.features.ENABLE_DISTRICTS
+      ? this.districtSystem.getZones()
+      : [];
+    const eventSave = this.eventSystem?.snapshot() ?? { ...EMPTY_EVENT_SAVE };
     const buildingSnapshots: PersistedBuildingState[] = this.buildingManager
       .getBuildings()
       .map((building) => ({
@@ -1662,11 +1788,11 @@ export class Game {
       time: timeSnapshot,
       debt: this.debtSystem.snapshotState(),
       economy: economySnapshot,
-      reputation: this.reputationSystem.snapshot(),
+      reputation: reputationSnapshot,
       security: this.securitySnapshot,
       buildZone: this.buildZoneSystem.snapshot(),
-      districts: this.districtSystem.getZones(),
-      events: this.eventSystem.snapshot(),
+      districts: districtSave,
+      events: eventSave,
       simulation: this.simulation.snapshotState(),
       activeAssetPacks: [...(this.assetRegistry.activePackIds ?? [])],
       people: this.peopleManager.snapshot(),
@@ -1693,6 +1819,8 @@ export class Game {
     this.inspectMode = false;
     this.inspectHover = null;
     this.placementHint = null;
+    this.isGameOver = false;
+    this.gameOverReason = null;
     this.clearInspectionOverlay();
     this.money = save.money;
     this.totalClicks = save.totalClicks;
@@ -1704,16 +1832,38 @@ export class Game {
     this.timeSystem.hydrate(save.time);
     this.debtSystem.hydrate(save.debt);
     this.economySystem.hydrate(save.economy);
-    this.reputationSystem.hydrate(save.reputation);
-    this.securitySystem.hydrate(save.security);
-    this.securitySnapshot = { ...save.security };
-    this.buildZoneSystem.hydrate(save.buildZone);
-    this.districtSystem.hydrateZones(save.districts);
-    this.drawBuildZone();
-    this.drawDistricts();
+    const savedReputation = save.reputation ?? DEFAULT_REPUTATION;
+    if (this.reputationSystem && this.features.ENABLE_REPUTATION) {
+      this.reputationSystem.hydrate(savedReputation);
+      this.reputationSnapshot = this.reputationSystem.snapshot();
+    } else {
+      this.reputationSnapshot = { ...savedReputation };
+    }
 
-    this.eventSystem.hydrate(save.events);
-    this.activeEvents = save.events.active;
+    const savedSecurity = save.security ?? DEFAULT_SECURITY;
+    if (this.securitySystem && this.features.ENABLE_SECURITY) {
+      this.securitySystem.hydrate(savedSecurity);
+      this.securitySnapshot = this.securitySystem.snapshot();
+    } else {
+      this.securitySnapshot = { ...savedSecurity };
+    }
+    this.buildZoneSystem.hydrate(save.buildZone);
+    if (this.features.ENABLE_DISTRICTS) {
+      this.districtSystem.hydrateZones(save.districts);
+      this.drawDistricts();
+    } else if (this.districtOverlay) {
+      this.districtOverlay.destroy();
+      this.districtOverlay = undefined;
+    }
+    this.drawBuildZone();
+
+    const eventSave: EventSystemSave = save.events ?? { ...EMPTY_EVENT_SAVE };
+    if (this.eventSystem && this.features.ENABLE_EVENTS) {
+      this.eventSystem.hydrate(eventSave);
+      this.activeEvents = eventSave.active ?? [];
+    } else {
+      this.activeEvents = [];
+    }
     await this.applyAssetPacks(save.activeAssetPacks ?? [], true);
 
     this.peopleManager.resetPeople();
@@ -1723,8 +1873,12 @@ export class Game {
     this.buildingManager.hydrateBuildings(save.buildings, workerCatalog);
     this.peopleManager.hydrate(save.people);
 
+    this.attractionSnapshot =
+      this.features.ENABLE_ATTRACTION_AI && this.attractionSystem
+        ? this.attractionSystem.snapshotState()
+        : { ...DEFAULT_ATTRACTION };
+    this.peopleManager.setBaseInflux(this.attractionSnapshot.influxPerMinute);
     this.refreshAvailableWorkers();
-    //this.recomputeAttraction();
     this.recomputeGuardPresence();
     this.selectedBuilding = null;
     this.selectedPerson = null;

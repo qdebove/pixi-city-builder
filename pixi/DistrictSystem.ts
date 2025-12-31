@@ -12,18 +12,25 @@ export interface DistrictSnapshot {
 }
 
 export class DistrictSystem {
+  private readonly enabled: boolean;
   private themes: Map<string, DistrictThemeDefinition> = new Map();
   private generation: DistrictGenerationSettings;
   private zones: DistrictZoneDefinition[] = [];
   private readonly zoneSpacing = 1;
 
-  constructor() {
+  constructor(enabled: boolean = true) {
+    this.enabled = enabled;
     this.themes = new Map(DISTRICT_DEFINITIONS.themes.map((t) => [t.id, t]));
     this.generation = DISTRICT_DEFINITIONS.generation;
     this.generateZones();
   }
 
   public generateZones() {
+    if (!this.enabled) {
+      this.zones = [];
+      return;
+    }
+
     const zones: DistrictZoneDefinition[] = [];
     const zoneCount = this.randomInt(
       this.generation.minZones,
@@ -72,6 +79,7 @@ export class DistrictSystem {
   }
 
   public getDistrictForBuilding(building: Building): DistrictZoneDefinition | null {
+    if (!this.enabled) return null;
     return this.getZoneAt(building.gridX, building.gridY);
   }
 
@@ -79,6 +87,7 @@ export class DistrictSystem {
     building: Building,
     typeOverride?: BuildingType
   ): number {
+    if (!this.enabled) return 1;
     const zone = this.getDistrictForBuilding(building);
     if (!zone) return 1;
     const theme = this.themes.get(zone.themeId);
@@ -90,6 +99,10 @@ export class DistrictSystem {
   }
 
   public snapshot(buildings: Building[]): DistrictSnapshot {
+    if (!this.enabled) {
+      return { zones: [] };
+    }
+
     const tally: Record<string, number> = {};
     buildings.forEach((b) => {
       const zone = this.getDistrictForBuilding(b);
@@ -109,6 +122,7 @@ export class DistrictSystem {
   }
 
   public getZoneAt(gridX: number, gridY: number): DistrictZoneDefinition | null {
+    if (!this.enabled) return null;
     return (
       this.zones.find((zone) =>
         this.isWithinZone(zone, gridX, gridY)
@@ -117,6 +131,10 @@ export class DistrictSystem {
   }
 
   public hydrateZones(zones: DistrictZoneDefinition[]) {
+    if (!this.enabled) {
+      this.zones = [];
+      return;
+    }
     this.zones = zones.map((zone) => ({ ...zone, area: { ...zone.area } }));
   }
 
