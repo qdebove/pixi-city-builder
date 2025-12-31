@@ -68,6 +68,20 @@ export interface SelectedBuildingComputed {
   lastServiceSatisfaction?: number;
 }
 
+export interface InspectHoverSnapshot {
+  id: string;
+  label: string;
+  kind: 'building' | 'road';
+  efficiency?: number;
+  connected?: boolean;
+}
+
+export interface BuildingStatsSnapshot {
+  total: number;
+  roads: number;
+  byCategory: Record<string, number>;
+}
+
 export interface GameUIState {
   money: number;
   totalClicks: number;
@@ -96,6 +110,10 @@ export interface GameUIState {
   attraction: AttractionSnapshot;
   workerSchedules: ReturnType<Game['buildWorkerScheduleSnapshots']>;
   notifications: GameNotification[];
+  inspectMode: boolean;
+  inspectHover: InspectHoverSnapshot | null;
+  buildingStats: BuildingStatsSnapshot;
+  placementHint: string | null;
 }
 
 type WorkerScheduleState = {
@@ -140,6 +158,13 @@ export class Game {
   private timeScale: number = 1;
   private activeEvents: ActiveEventSnapshot[] = [];
   private activeNotifications: GameNotification[] = [];
+  private inspectMode = false;
+  private inspectionOverlay?: Graphics;
+  private lastInspectionRenderMs = 0;
+  private inspectHover: InspectHoverSnapshot | null = null;
+  private audioContext: AudioContext | null = null;
+  private lastPlacementToneAt = 0;
+  private placementHint: string | null = null;
 
   private buildZoneOverlay?: Graphics;
   private districtOverlay?: Graphics;
@@ -299,6 +324,110 @@ export class Game {
     this.worldView.world.addChild(overlay);
   }
 
+  private renderInspectionOverlay() {
+    if (!this.inspectMode) return;
+    this.clearInspectionOverlay();
+
+    const overlay = new Graphics();
+    overlay.zIndex = 1400;
+    overlay.eventMode = 'none';
+
+    const connectedRoads = this.computeConnectedRoadIds();
+    this.buildingManager.getRoadBuildings().forEach((road) => {
+      const isConnected = connectedRoads.has(road.state.instanceId);
+      const color = isConnected ? 0x22c55e : 0xef4444;
+      overlay
+        .rect(
+          road.gridX * CELL_SIZE,
+          road.gridY * CELL_SIZE,
+          road.widthCells * CELL_SIZE,
+          road.heightCells * CELL_SIZE
+        )
+        .fill({ color, alpha: 0.18 })
+        .stroke({ width: 2, color, alpha: 0.9 });
+    });
+
+    this.buildingManager
+      .getBuildings()
+      .filter((b) => !b.type.isRoad)
+      .forEach((building) => {
+        const efficiency = this.computeBuildingEfficiency(building);
+        const color = this.blendColors(0xef4444, 0x22c55e, efficiency);
+        overlay
+          .rect(
+            building.gridX * CELL_SIZE,
+            building.gridY * CELL_SIZE,
+            building.widthCells * CELL_SIZE,
+            building.heightCells * CELL_SIZE
+          )
+          .fill({ color, alpha: 0.14 })
+          .stroke({ width: 3, color, alpha: 0.9 });
+      });
+
+    this.inspectionOverlay = overlay;
+    this.worldView.world.addChild(overlay);
+    this.worldView.world.sortChildren();
+  }
+
+  private clearInspectionOverlay() {
+    if (this.inspectionOverlay) {
+      this.worldView.world.removeChild(this.inspectionOverlay);
+      this.inspectionOverlay.destroy();
+      this.inspectionOverlay = undefined;
+    }
+  }
+
+  private computeConnectedRoadIds(): Set<string> {
+    const roads = this.buildingManager.getRoadBuildings();
+    if (roads.length === 0) return new Set();
+
+    const visited = new Set<string>();
+    const queue: Building[] = [];
+
+    const first = roads[0];
+    visited.add(first.state.instanceId);
+    queue.push(first);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) continue;
+      const neighbors = this.buildingManager.getRoadNeighbors(current);
+      neighbors.forEach((neighbor) => {
+        if (!visited.has(neighbor.state.instanceId)) {
+          visited.add(neighbor.state.instanceId);
+          queue.push(neighbor);
+        }
+      });
+    }
+
+    return visited;
+  }
+
+  private computeBuildingEfficiency(building: Building): number {
+    const visitorLoad = building.getOccupancyRatioFor('visitor');
+    const staffLoad = building.getOccupancyRatioFor('staff');
+    const queueRatio = building.getQueueRatio();
+    const satisfaction = Math.max(0, Math.min(1, building.getLastServiceSatisfaction() ?? 0.65));
+
+    const baseScore = visitorLoad * 0.55 + staffLoad * 0.25 + satisfaction * 0.2;
+    const penalty = queueRatio * 0.35;
+    return Math.max(0, Math.min(1, baseScore - penalty));
+  }
+
+  private blendColors(from: number, to: number, t: number): number {
+    const clamped = Math.max(0, Math.min(1, t));
+    const r1 = (from >> 16) & 0xff;
+    const g1 = (from >> 8) & 0xff;
+    const b1 = from & 0xff;
+    const r2 = (to >> 16) & 0xff;
+    const g2 = (to >> 8) & 0xff;
+    const b2 = to & 0xff;
+    const r = Math.round(r1 + (r2 - r1) * clamped);
+    const g = Math.round(g1 + (g2 - g1) * clamped);
+    const b = Math.round(b1 + (b2 - b1) * clamped);
+    return (r << 16) + (g << 8) + b;
+  }
+
   private async preloadAssets(activePacks: string[] = []) {
     const packAssets: AssetDefinition[] = activePacks.flatMap((packId) =>
       Object.values(this.assetRegistry.packs?.[packId]?.assets ?? {})
@@ -449,9 +578,9 @@ export class Game {
     if (eventModifiers.moneyDelta !== 0) {
       this.money += eventModifiers.moneyDelta;
       if (eventModifiers.moneyDelta > 0) {
-        this.economySystem.recordIncome(eventModifiers.moneyDelta);
+        this.economySystem.recordIncome(eventModifiers.moneyDelta, 'events');
       } else {
-        this.economySystem.recordExpense(-eventModifiers.moneyDelta);
+        this.economySystem.recordExpense(-eventModifiers.moneyDelta, 'events');
       }
     }
 
@@ -469,7 +598,7 @@ export class Game {
     if (this.money < hiringCost) return false;
 
     this.money -= hiringCost;
-    this.economySystem.recordExpense(hiringCost);
+    this.economySystem.recordExpense(hiringCost, 'hiring');
     this.hiredWorkerIds.add(workerId);
     this.syncPeoplePool();
     this.emitState();
@@ -548,6 +677,9 @@ export class Game {
   }
 
   private onPointerMove(e: FederatedPointerEvent) {
+    if (this.inspectMode) {
+      this.updateInspectHover(e.global);
+    }
     if (!this.isPaintingRoad) return;
     this.paintRoadAtGlobal(e.global);
   }
@@ -558,19 +690,133 @@ export class Game {
     this.lastPaintedCell = null;
   }
 
-  public tryPlaceBuilding(globalPos: Point) {
-    if (this.isPaused) return;
+  private updateInspectHover(globalPos: Point) {
+    if (!this.inspectMode) return;
 
-    const type = this.buildingManager.getDraggingMode();
-    if (!type) return;
-
-    if (this.money >= type.cost) {
-      const success = this.buildingManager.tryPlaceBuildingAt(globalPos, type);
-      if (success) {
-        this.money -= type.cost;
-        this.economySystem.recordExpense(type.cost);
+    const target = this.buildingManager.getBuildingAtGlobal(globalPos);
+    if (!target) {
+      if (this.inspectHover !== null) {
+        this.inspectHover = null;
         this.emitState();
       }
+      return;
+    }
+
+    const connectedRoads = this.computeConnectedRoadIds();
+
+    if (target.type.isRoad) {
+      const nextHover: InspectHoverSnapshot = {
+        id: target.state.instanceId,
+        label: 'Route',
+        kind: 'road',
+        connected: connectedRoads.has(target.state.instanceId),
+      };
+      if (
+        !this.inspectHover ||
+        this.inspectHover.id !== nextHover.id ||
+        this.inspectHover.connected !== nextHover.connected ||
+        this.inspectHover.kind !== nextHover.kind
+      ) {
+        this.inspectHover = nextHover;
+        this.emitState();
+      }
+      return;
+    }
+
+    const efficiency = this.computeBuildingEfficiency(target);
+    const adjacentConnected = this.buildingManager
+      .getRoadNeighbors(target)
+      .some((road) => connectedRoads.has(road.state.instanceId));
+
+    const nextHover: InspectHoverSnapshot = {
+      id: target.state.instanceId,
+      label: target.type.name,
+      kind: 'building',
+      efficiency,
+      connected: adjacentConnected,
+    };
+
+    if (
+      !this.inspectHover ||
+      this.inspectHover.id !== nextHover.id ||
+      this.inspectHover.efficiency !== nextHover.efficiency ||
+      this.inspectHover.connected !== nextHover.connected ||
+      this.inspectHover.kind !== nextHover.kind
+    ) {
+      this.inspectHover = nextHover;
+      this.emitState();
+    }
+  }
+
+  public tryPlaceBuilding(globalPos: Point): boolean {
+    if (this.isPaused) return false;
+
+    const type = this.buildingManager.getDraggingMode();
+    if (!type) return false;
+
+    if (this.money < type.cost) {
+      this.setPlacementHint(`Fonds insuffisants pour ${type.name}.`, true);
+      this.emitPlacementTone('error');
+      return false;
+    }
+
+    const success = this.buildingManager.tryPlaceBuildingAt(globalPos, type);
+    if (success) {
+      this.money -= type.cost;
+      this.economySystem.recordExpense(type.cost, 'construction');
+      this.setPlacementHint(null);
+      this.emitState();
+      this.emitPlacementTone('success');
+      return true;
+    }
+
+    this.setPlacementHint('Emplacement bloqué : zone ou collision.', true);
+    this.emitPlacementTone('error');
+    return false;
+  }
+
+  private getAudioContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    if (this.audioContext) return this.audioContext;
+    const ContextCtor =
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!ContextCtor) return null;
+    this.audioContext = new ContextCtor();
+    return this.audioContext;
+  }
+
+  private emitPlacementTone(kind: 'success' | 'error') {
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (nowMs - this.lastPlacementToneAt < 140) {
+      return;
+    }
+    this.lastPlacementToneAt = nowMs;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const start = ctx.currentTime;
+
+    osc.type = kind === 'success' ? 'triangle' : 'sawtooth';
+    osc.frequency.value = kind === 'success' ? 720 : 180;
+    gain.gain.setValueAtTime(kind === 'success' ? 0.09 : 0.12, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.25);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(start);
+    osc.stop(start + 0.3);
+  }
+
+  private setPlacementHint(message: string | null, emit: boolean = false) {
+    if (this.placementHint === message) return;
+    this.placementHint = message;
+    if (emit) {
+      this.emitState();
     }
   }
 
@@ -582,7 +828,7 @@ export class Game {
     if (!expanded) return false;
 
     this.money -= cost;
-    this.economySystem.recordExpense(cost);
+    this.economySystem.recordExpense(cost, 'expansion');
     this.drawBuildZone();
     this.emitState();
     return true;
@@ -597,9 +843,17 @@ export class Game {
     if (paid <= 0) return false;
 
     this.money -= paid;
-    this.economySystem.recordExpense(paid);
+    this.economySystem.recordExpense(paid, 'debt');
     this.emitState();
     return true;
+  }
+
+  public grantTutorialReward(amount: number): number {
+    if (amount <= 0) return 0;
+    this.money += amount;
+    this.economySystem.recordIncome(amount, 'events');
+    this.emitState();
+    return amount;
   }
 
   public harvestBuilding(
@@ -615,7 +869,7 @@ export class Game {
     if (income <= 0) return;
 
     this.money += income;
-    this.economySystem.recordIncome(income);
+    this.economySystem.recordIncome(income, 'operations');
     this.totalClicks++;
 
     const center = building.getCenterGlobalPosition();
@@ -648,6 +902,9 @@ export class Game {
     const gridPos = this.buildingManager.getGridPositionFromGlobal(globalPos);
     if (!gridPos) return;
 
+    const typeCost = type.cost;
+    const hadFunds = this.money >= typeCost;
+
     if (
       this.lastPaintedCell &&
       gridPos.gridX === this.lastPaintedCell.gridX &&
@@ -674,8 +931,13 @@ export class Game {
     }
 
     if (spent > 0) {
-      this.economySystem.recordExpense(spent);
+      this.economySystem.recordExpense(spent, 'construction');
+      this.setPlacementHint(null);
       this.emitState();
+      this.emitPlacementTone('success');
+    } else if (!hadFunds) {
+      this.setPlacementHint('Fonds insuffisants pour tracer une route.', true);
+      this.emitPlacementTone('error');
     }
 
     this.lastPaintedCell = gridPos;
@@ -731,6 +993,21 @@ export class Game {
     if (type) {
       this.deselectPerson();
     }
+    if (!type) {
+      this.setPlacementHint(null);
+    }
+    this.emitState();
+  }
+
+  public setInspectMode(enabled: boolean) {
+    if (this.inspectMode === enabled) return;
+    this.inspectMode = enabled;
+    if (!enabled) {
+      this.clearInspectionOverlay();
+      this.inspectHover = null;
+    } else {
+      this.renderInspectionOverlay();
+    }
     this.emitState();
   }
 
@@ -755,7 +1032,7 @@ export class Game {
 
     if (this.money >= cost && b.state.level < b.type.maxLevel) {
       this.money -= cost;
-      this.economySystem.recordExpense(cost);
+      this.economySystem.recordExpense(cost, 'construction');
 
       const nextLevel = b.state.level + 1;
       b.updateState({
@@ -1078,6 +1355,25 @@ export class Game {
     return { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole };
   }
 
+  private computeBuildingStats(): BuildingStatsSnapshot {
+    const stats: BuildingStatsSnapshot = {
+      total: 0,
+      roads: 0,
+      byCategory: {},
+    };
+
+    this.buildingManager.getBuildings().forEach((building) => {
+      stats.total += 1;
+      if (building.type.isRoad) {
+        stats.roads += 1;
+      }
+      const category = building.type.category ?? 'unknown';
+      stats.byCategory[category] = (stats.byCategory[category] ?? 0) + 1;
+    });
+
+    return stats;
+  }
+
   private computeVisitorSentiment() {
     const active = this.peopleManager.getVisitorSatisfaction();
     const settledVisitors = this.buildingManager
@@ -1273,6 +1569,7 @@ export class Game {
   private emitState() {
     const { occupantsByType, movingPeopleCount, peopleByRole, occupantsByRole } =
       this.computeGlobalStats();
+    const buildingStats = this.computeBuildingStats();
     const reputation = this.reputationSystem.snapshot();
     const time = this.timeSystem.snapshotState();
 
@@ -1288,12 +1585,20 @@ export class Game {
       {} as Record<string, number>
     );
 
-    const economy = this.economySystem.snapshot();
+    const economy = this.economySystem.snapshot(time.day);
     const districts = this.districtSystem.snapshot(
       this.buildingManager.getBuildings()
     );
     const buildZone = this.buildZoneSystem.snapshot();
     this.broadcastReputationChange(reputation);
+
+    if (this.inspectMode) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (now - this.lastInspectionRenderMs > 350) {
+        this.renderInspectionOverlay();
+        this.lastInspectionRenderMs = now;
+      }
+    }
 
     this.onStateChange({
       money: this.money,
@@ -1327,10 +1632,16 @@ export class Game {
       attraction: this.attractionSnapshot,
       workerSchedules: this.buildWorkerScheduleSnapshots(time),
       notifications: this.activeNotifications,
+      inspectMode: this.inspectMode,
+      inspectHover: this.inspectHover,
+      buildingStats,
+      placementHint: this.placementHint,
     });
   }
 
   public getSavePayload(): GameSaveState {
+    const timeSnapshot = this.timeSystem.snapshotState();
+    const economySnapshot = this.economySystem.snapshot(timeSnapshot.day);
     const buildingSnapshots: PersistedBuildingState[] = this.buildingManager
       .getBuildings()
       .map((building) => ({
@@ -1349,9 +1660,9 @@ export class Game {
       totalClicks: this.totalClicks,
       buildings: buildingSnapshots,
       hiredWorkers: Array.from(this.hiredWorkerIds.values()),
-      time: this.timeSystem.snapshotState(),
+      time: timeSnapshot,
       debt: this.debtSystem.snapshotState(),
-      economy: this.economySystem.snapshot(),
+      economy: economySnapshot,
       reputation: this.reputationSystem.snapshot(),
       security: this.securitySnapshot,
       buildZone: this.buildZoneSystem.snapshot(),
@@ -1380,6 +1691,10 @@ export class Game {
     this.notificationCenter.reset();
     this.activeNotifications = [];
     this.buildingSaturationTracker.clear();
+    this.inspectMode = false;
+    this.inspectHover = null;
+    this.placementHint = null;
+    this.clearInspectionOverlay();
     this.money = save.money;
     this.totalClicks = save.totalClicks;
     this.hiredWorkerIds = new Set(save.hiredWorkers);
@@ -1425,6 +1740,7 @@ export class Game {
   public destroy() {
     this.buildZoneOverlay?.destroy();
     this.districtOverlay?.destroy();
+    this.clearInspectionOverlay();
     this.worldView.destroy();
     this.app.destroy(true, { children: true });
   }

@@ -12,6 +12,7 @@ import { AttractionSystem } from '@/pixi/AttractionSystem';
 import { BuildZoneIndicator } from '@/components/BuildZoneIndicator';
 import { BUILDING_TYPES, BuildingType } from '@/types/types';
 import { DEBT_SETTINGS, TIME_SETTINGS } from '@/pixi/data/time-settings';
+import { ECONOMY_SETTINGS } from '@/pixi/data/economy-settings';
 import {
   clearGameSave,
   getSaveVersion,
@@ -24,20 +25,101 @@ import { SavedGameMetadata } from '@/types/save';
 import { WorkerShiftAssignment } from '@/types/data-contract';
 import { WorkerPlanningPanel } from '@/components/WorkerPlanningPanel';
 import { GameNotification } from '@/types/ui';
+import { EconomySystem } from '@/pixi/EconomySystem';
+import { TutorialPanel } from '@/components/TutorialPanel';
+import { TutorialProgress, TutorialStep, TutorialStepId } from '@/types/tutorial';
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
+
+const TUTORIAL_STORAGE_KEY = 'mini-city-tycoon-tutorial-v1';
+
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    id: 'route',
+    title: 'Tracer une route',
+    description: 'Peignez au moins une route pour ouvrir un accès de base.',
+    reward: 80,
+  },
+  {
+    id: 'pleasure',
+    title: 'Construire un bâtiment plaisir',
+    description: 'Placez un commerce pour générer des revenus ponctuels.',
+    reward: 140,
+  },
+  {
+    id: 'assign',
+    title: 'Planifier une travailleuse',
+    description: 'Assignez un créneau principal ou secondaire dans le planning.',
+    reward: 150,
+  },
+  {
+    id: 'finance',
+    title: 'Ouvrir les finances',
+    description: "Ouvrez l'onglet Économie dans le menu principal.",
+    reward: 90,
+  },
+  {
+    id: 'debt',
+    title: 'Payer la dette',
+    description: 'Règle la mensualité due pour éviter les pénalités.',
+    reward: 200,
+  },
+];
+
+const loadTutorialProgress = (): TutorialProgress => {
+  if (typeof window === 'undefined') {
+    return { currentIndex: 0, completed: [] };
+  }
+  const raw = window.localStorage.getItem(TUTORIAL_STORAGE_KEY);
+  if (!raw) return { currentIndex: 0, completed: [] };
+  try {
+    const parsed = JSON.parse(raw) as Partial<TutorialProgress>;
+    if (
+      parsed &&
+      typeof parsed.currentIndex === 'number' &&
+      Array.isArray(parsed.completed)
+    ) {
+      const safeCompleted = parsed.completed.filter((id): id is TutorialStepId =>
+        ['route', 'pleasure', 'assign', 'finance', 'debt'].includes(id)
+      );
+      return {
+        currentIndex: Math.min(
+          TUTORIAL_STEPS.length,
+          Math.max(0, parsed.currentIndex)
+        ),
+        completed: safeCompleted,
+      };
+    }
+  } catch {
+    // ignore malformed storage
+  }
+  return { currentIndex: 0, completed: [] };
+};
+
+const formatMoney = (value: number) =>
+  value.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
 
 const Home: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Game | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const initialTutorialProgress = useMemo(() => loadTutorialProgress(), []);
 
   const [gameState, setGameState] = useState<GameUIState>(() => {
     const attraction = new AttractionSystem().snapshotState();
+    const economyPreview = new EconomySystem(
+      ECONOMY_SETTINGS,
+      TIME_SETTINGS
+    ).snapshot(TIME_SETTINGS.startDay ?? 1);
     return {
       money: 1000,
       totalClicks: 0,
@@ -81,16 +163,7 @@ const Home: React.FC = () => {
       guardPresence: { roaming: 0, stationed: 0 },
       hiredWorkers: [],
       hiredByJob: {},
-      economy: {
-        dailyMaintenance: 0,
-        dailySalaries: 0,
-        dailyPassiveIncome: 0,
-        lastDailyIncome: 0,
-        lastMonthlyTax: 0,
-        monthIncome: 0,
-        monthExpenses: 0,
-        projectedTax: 0,
-      },
+      economy: economyPreview,
       districts: { zones: [] },
       buildZone: {
         bounds: { x: 0, y: 0, width: 0, height: 0 },
@@ -98,12 +171,21 @@ const Home: React.FC = () => {
         expansionsPurchased: 0,
         maxSize: 0,
       },
+      buildingStats: { total: 0, roads: 0, byCategory: {} },
       activeAssetPacks: [],
       attraction,
       workerSchedules: [],
       notifications: [],
+      inspectMode: false,
+      inspectHover: null,
+      placementHint: null,
     };
   });
+  const [tutorialProgress, setTutorialProgress] = useState<TutorialProgress>(
+    initialTutorialProgress
+  );
+  const [tutorialToast, setTutorialToast] = useState<string | null>(null);
+  const [hasUserScheduled, setHasUserScheduled] = useState(false);
   const [draggingType, setDraggingType] = useState<BuildingType | null>(
     null
   );
@@ -187,8 +269,9 @@ const Home: React.FC = () => {
   const handleScheduleAssign = useCallback(
     (workerId: string, slotIndex: number, assignment: WorkerShiftAssignment) => {
       gameRef.current?.updateWorkerSlot(workerId, slotIndex, assignment);
+      setHasUserScheduled(true);
     },
-    []
+    [setHasUserScheduled]
   );
 
   useEffect(() => {
@@ -229,6 +312,20 @@ const Home: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [debtFeedback]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      TUTORIAL_STORAGE_KEY,
+      JSON.stringify(tutorialProgress)
+    );
+  }, [tutorialProgress]);
+
+  useEffect(() => {
+    if (!tutorialToast) return;
+    const timer = window.setTimeout(() => setTutorialToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [tutorialToast]);
+
   const handleSelectBuildingToBuild = (
     type: BuildingType | null
   ) => {
@@ -244,6 +341,9 @@ const Home: React.FC = () => {
   const setTimeControl = useCallback((mode: 'pause' | 'normal' | 'fast') => {
     gameRef.current?.setTimeMode(mode);
   }, []);
+  const handleToggleInspectMode = useCallback(() => {
+    gameRef.current?.setInspectMode(!gameState.inspectMode);
+  }, [gameState.inspectMode]);
 
   const handlePause = () => setTimeControl('pause');
   const handleResume = () => setTimeControl('normal');
@@ -278,13 +378,6 @@ const Home: React.FC = () => {
         (t) => t.id === gameState.selectedBuildingState!.typeId
       )
     : null;
-
-  const formatMoney = (value: number) =>
-    value.toLocaleString('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    });
 
   const formatDebt = () =>
     `${formatMoney(gameState.debt.balance)} restantes`;
@@ -506,6 +599,52 @@ const Home: React.FC = () => {
       : gameState.timeScale >= 2.5
       ? 'fast'
       : 'normal';
+  const hasOpenedEconomy =
+    tutorialProgress.completed.includes('finance') ||
+    (isMenuOpen && menuTab === 'economy');
+  const activeStep =
+    tutorialProgress.currentIndex < TUTORIAL_STEPS.length
+      ? TUTORIAL_STEPS[tutorialProgress.currentIndex]
+      : null;
+  const isTutorialFinished = tutorialProgress.currentIndex >= TUTORIAL_STEPS.length;
+  const isStepComplete = useCallback(
+    (stepId: TutorialStepId) => {
+      switch (stepId) {
+        case 'route':
+          return (gameState.buildingStats.roads ?? 0) > 0;
+        case 'pleasure':
+          return (gameState.buildingStats.byCategory['commerce'] ?? 0) > 0;
+        case 'assign':
+          return hasUserScheduled;
+        case 'finance':
+          return hasOpenedEconomy;
+        case 'debt':
+          return gameState.debt.isPaidForMonth;
+        default:
+          return false;
+      }
+    },
+    [
+      gameState.buildingStats,
+      gameState.debt.isPaidForMonth,
+      hasOpenedEconomy,
+      hasUserScheduled,
+    ]
+  );
+  const activeStepComplete = activeStep ? isStepComplete(activeStep.id) : true;
+  const handleAdvanceTutorial = useCallback(() => {
+    if (!activeStep || !activeStepComplete) return;
+    setTutorialProgress((prev) => {
+      const alreadyCompleted = prev.completed.includes(activeStep.id);
+      const completed = alreadyCompleted ? prev.completed : [...prev.completed, activeStep.id];
+      const nextIndex = Math.min(TUTORIAL_STEPS.length, prev.currentIndex + 1);
+      if (!alreadyCompleted && activeStep.reward > 0) {
+        gameRef.current?.grantTutorialReward(activeStep.reward);
+        setTutorialToast(`Prime tutoriel ${formatMoney(activeStep.reward)}`);
+      }
+      return { currentIndex: nextIndex, completed };
+    });
+  }, [activeStep, activeStepComplete]);
 
   const infoCards: {
     id: string;
@@ -652,6 +791,16 @@ const Home: React.FC = () => {
                     className="rounded-lg border border-emerald-600 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-emerald-600"
                   >
                     📅 Planning
+                  </button>
+                  <button
+                    onClick={handleToggleInspectMode}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold shadow-lg transition ${
+                      gameState.inspectMode
+                        ? 'border border-sky-500/70 bg-sky-700 text-white hover:bg-sky-600'
+                        : 'border border-slate-700 bg-slate-800 text-slate-100 hover:border-sky-500 hover:text-white'
+                    }`}
+                  >
+                    🔎 Inspect
                   </button>
                   <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-1 py-1">
                     <button
@@ -845,6 +994,13 @@ const Home: React.FC = () => {
           </div>
         </div>
       )}
+      {tutorialToast && (
+        <div className="pointer-events-none fixed left-1/2 top-28 z-40 -translate-x-1/2">
+          <div className="pointer-events-auto rounded-lg border border-emerald-500/60 bg-emerald-900/80 px-4 py-2 text-sm text-emerald-100 shadow-xl">
+            {tutorialToast}
+          </div>
+        </div>
+      )}
 
       <NotificationCenter
         notifications={gameState.notifications}
@@ -852,6 +1008,53 @@ const Home: React.FC = () => {
         onDismiss={handleNotificationDismiss}
       />
       <EventTicker events={gameState.activeEvents} />
+      {gameState.inspectMode && (
+        <div className="pointer-events-none fixed left-4 top-[140px] z-40 w-80 max-w-full rounded-xl border border-sky-600/70 bg-slate-900/90 p-3 shadow-2xl">
+          <p className="text-sm font-semibold text-white">Mode inspection actif</p>
+          <p className="text-xs text-slate-200">
+            Bâtiments verts = efficaces, rouge = saturation ou sous-staff. Routes rouges = isolées.
+          </p>
+          {gameState.inspectHover ? (
+            <div className="pointer-events-auto mt-2 rounded-lg border border-slate-700 bg-slate-800/80 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-white">
+                  {gameState.inspectHover.label}
+                </span>
+                {gameState.inspectHover.connected !== undefined && (
+                  <span
+                    className={`text-[11px] font-semibold ${
+                      gameState.inspectHover.connected ? 'text-emerald-300' : 'text-amber-200'
+                    }`}
+                  >
+                    {gameState.inspectHover.connected ? 'Connecté' : 'Isolé'}
+                  </span>
+                )}
+              </div>
+              {typeof gameState.inspectHover.efficiency === 'number' ? (
+                <p className="text-xs text-slate-200">
+                  Efficacité : {(gameState.inspectHover.efficiency * 100).toFixed(0)}%
+                </p>
+              ) : (
+                <p className="text-xs text-slate-200">Route dédiée à la circulation.</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-slate-400">
+              Survolez un bâtiment ou une route pour voir son statut.
+            </p>
+          )}
+        </div>
+      )}
+      <div className="pointer-events-none fixed left-4 top-[360px] z-30">
+        <TutorialPanel
+          steps={TUTORIAL_STEPS}
+          progress={tutorialProgress}
+          activeStep={activeStep}
+          activeComplete={activeStepComplete}
+          isFinished={isTutorialFinished}
+          onAdvance={handleAdvanceTutorial}
+        />
+      </div>
       <div className="pointer-events-none fixed right-4 top-[140px] z-30 w-[320px] max-w-full">
         <ReputationPanel
           reputation={gameState.reputation}
@@ -910,6 +1113,13 @@ const Home: React.FC = () => {
                 money={gameState.money}
                 daysPerMonth={TIME_SETTINGS.daysPerMonth ?? 30}
               />
+            </div>
+          )}
+          {gameState.placementHint && (
+            <div className="pointer-events-none mx-auto mb-2 flex max-w-5xl justify-center">
+              <div className="pointer-events-auto rounded-lg border border-amber-500/70 bg-amber-900/70 px-3 py-2 text-sm font-semibold text-amber-100 shadow-xl">
+                {gameState.placementHint}
+              </div>
             </div>
           )}
           <div className="mx-auto flex max-w-6xl items-end gap-4">
