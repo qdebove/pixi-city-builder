@@ -578,6 +578,8 @@ const Home: React.FC = () => {
   const outstandingDebt = gameState.debt.isPaidForMonth ? 0 : gameState.debt.paymentDue;
   const daysUntilDue = gameState.debt.dueDay - gameState.time.day;
   const monthlyFlow = gameState.economy.monthIncome - gameState.economy.monthExpenses;
+  const projectedNetAfterDebt = monthlyFlow - outstandingDebt;
+  const daysRemainingInMonth = Math.max(0, (TIME_SETTINGS.daysPerMonth ?? 30) - gameState.time.day);
   const debtSeverity =
     gameState.debt.isPaidForMonth
       ? 'text-emerald-200'
@@ -719,6 +721,61 @@ const Home: React.FC = () => {
     },
   ];
 
+  type PillTone = 'positive' | 'warning' | 'danger' | 'info';
+  const pillToneClasses: Record<PillTone, string> = {
+    positive: 'border-emerald-500/50 bg-emerald-900/50 text-emerald-50',
+    warning: 'border-amber-400/60 bg-amber-900/60 text-amber-50',
+    danger: 'border-rose-500/60 bg-rose-900/60 text-rose-50',
+    info: 'border-sky-500/50 bg-sky-900/50 text-sky-50',
+  };
+
+  const statusPills: {
+    id: string;
+    label: string;
+    value: string;
+    helper: string;
+    tone: PillTone;
+  }[] = [
+    {
+      id: 'cash',
+      label: 'Trésorerie',
+      value: formatMoney(gameState.money),
+      helper:
+        projectedNetAfterDebt >= 0
+          ? 'Solde après dette positif'
+          : 'Attention : dette dépasse le flux',
+      tone: projectedNetAfterDebt >= 0 ? 'positive' : 'warning',
+    },
+    {
+      id: 'flow',
+      label: 'Flux mensuel',
+      value: `${formatMoney(monthlyFlow)} / mois`,
+      helper: `Projection après dette : ${formatMoney(projectedNetAfterDebt)}`,
+      tone: monthlyFlow >= 0 ? 'info' : 'warning',
+    },
+    {
+      id: 'debt',
+      label: 'Échéance dette',
+      value: outstandingDebt > 0 ? formatMoney(outstandingDebt) : 'Payée',
+      helper: debtSubLabel,
+      tone:
+        outstandingDebt === 0
+          ? 'positive'
+          : daysUntilDue < 0
+          ? 'danger'
+          : daysUntilDue <= 3
+          ? 'warning'
+          : 'info',
+    },
+    {
+      id: 'traffic',
+      label: 'Trafic en cours',
+      value: `${movingCount.toLocaleString()} en déplacement`,
+      helper: `${totalHosted.toLocaleString()} hébergés • ${daysRemainingInMonth} j. restants`,
+      tone: movingCount > totalHosted ? 'info' : 'positive',
+    },
+  ];
+
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-slate-900 text-white select-none">
       {/* Barre globale en haut */}
@@ -838,6 +895,26 @@ const Home: React.FC = () => {
               </div>
             </div>
 
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+              {statusPills.map((pill) => (
+                <div
+                  key={pill.id}
+                  className={`flex flex-col justify-between rounded-xl border px-3 py-2 shadow ${pillToneClasses[pill.tone]}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] uppercase tracking-wide text-slate-100">
+                      {pill.label}
+                    </span>
+                    <span className="rounded-full bg-slate-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-100">
+                      Synthèse
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-lg font-semibold">{pill.value}</p>
+                  <p className="text-[12px] text-slate-100/80">{pill.helper}</p>
+                </div>
+              ))}
+            </div>
+
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
                 <p className="text-[11px] uppercase text-slate-400">Argent</p>
@@ -856,6 +933,9 @@ const Home: React.FC = () => {
                 <p className="text-xs text-slate-300">
                   Revenus : {formatMoney(gameState.economy.monthIncome)} · Dépenses :{' '}
                   {formatMoney(gameState.economy.monthExpenses)}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Après dette : {formatMoney(projectedNetAfterDebt)}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg">
@@ -895,6 +975,9 @@ const Home: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-slate-300">{debtSubLabel}</p>
+                <p className="text-[11px] text-slate-400">
+                  Rappel auto à J-3 pour éviter la pénalité.
+                </p>
                 <p className="text-[11px] text-slate-400">
                   Dernier paiement :{' '}
                   {gameState.debt.lastPayment > 0
