@@ -44,30 +44,40 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Tracer une route',
     description: 'Peignez au moins une route pour ouvrir un accès de base.',
     reward: 80,
+    ctaLabel: 'Sélectionnez la route puis glissez pour relier deux cases.',
+    ctaHelper: 'Utilisez la barre de construction pour passer en mode peinture.',
   },
   {
     id: 'pleasure',
     title: 'Construire un bâtiment plaisir',
     description: 'Placez un commerce pour générer des revenus ponctuels.',
     reward: 140,
+    ctaLabel: 'Ouvrez les commerces et placez un plan sur la grille.',
+    ctaHelper: 'Assurez un contact route avant de valider.',
   },
   {
     id: 'assign',
     title: 'Planifier une travailleuse',
     description: 'Assignez un créneau principal ou secondaire dans le planning.',
     reward: 150,
+    ctaLabel: 'Cliquez sur 📅 Planning puis affectez un créneau.',
+    ctaHelper: 'Validez un slot pour marquer l’étape.',
   },
   {
     id: 'finance',
     title: 'Ouvrir les finances',
     description: "Ouvrez l'onglet Économie dans le menu principal.",
     reward: 90,
+    ctaLabel: 'Menu principal → Économie.',
+    ctaHelper: 'Parcourez les indicateurs sans fermer le jeu.',
   },
   {
     id: 'debt',
     title: 'Payer la dette',
     description: 'Règle la mensualité due pour éviter les pénalités.',
     reward: 200,
+    ctaLabel: 'Dans Dette mensuelle, appuyez sur Payer.',
+    ctaHelper: 'Assurez des fonds disponibles avant validation.',
   },
 ];
 
@@ -416,6 +426,20 @@ const Home: React.FC = () => {
     gameRef.current?.acknowledgeNotification(id);
   }, []);
 
+  const handleQuickReduceSaturation = useCallback(() => {
+    setIsTopBarCollapsed(false);
+    setIsMenuOpen(true);
+    setMenuTab('buildings');
+    gameRef.current?.setInspectMode(true);
+  }, [setIsMenuOpen, setIsTopBarCollapsed, setMenuTab]);
+
+  const handleQuickBoostSatisfaction = useCallback(() => {
+    setIsTopBarCollapsed(false);
+    setIsPlannerOpen(true);
+    setIsMenuOpen(true);
+    setMenuTab('people');
+  }, [setIsMenuOpen, setIsPlannerOpen, setIsTopBarCollapsed, setMenuTab]);
+
   const selectionContent = gameState.selectedPerson ? (
     <PersonDetailsPanel person={gameState.selectedPerson} />
   ) : selectedType && gameState.selectedBuildingState ? (
@@ -561,12 +585,12 @@ const Home: React.FC = () => {
   ];
 
   type AccentTone = 'amber' | 'sky' | 'emerald' | 'violet' | 'rose';
-  const accentClasses: Record<AccentTone, string> = {
-    amber: 'border-amber-500/60 shadow-amber-500/10',
-    sky: 'border-sky-500/60 shadow-sky-500/10',
-    emerald: 'border-emerald-500/60 shadow-emerald-500/10',
-    violet: 'border-violet-500/60 shadow-violet-500/10',
-    rose: 'border-rose-500/60 shadow-rose-500/10',
+  const accentHeaderClasses: Record<AccentTone, string> = {
+    amber: 'border-amber-500/50 bg-amber-900/40 text-amber-50',
+    sky: 'border-sky-500/50 bg-sky-900/40 text-sky-50',
+    emerald: 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50',
+    violet: 'border-violet-500/50 bg-violet-900/40 text-violet-50',
+    rose: 'border-rose-500/50 bg-rose-900/40 text-rose-50',
   };
 
   const totalHosted =
@@ -988,64 +1012,42 @@ const Home: React.FC = () => {
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {infoCards.map((card) => (
-                <div
-                  key={card.id}
-                  className="group relative"
-                  onMouseLeave={() => setActiveInfoCard(null)}
-                >
+              {infoCards.map((card) => {
+                const isExpanded = activeInfoCard === card.id;
+                return (
                   <div
-                    className={`rounded-xl border ${accentClasses[card.accent]} bg-slate-900/80 px-4 py-3 shadow-lg`}
+                    key={card.id}
+                    className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-lg"
+                    onMouseLeave={() => setActiveInfoCard(null)}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div
+                      className={`flex items-start justify-between gap-2 border-b border-slate-800 px-4 py-3 ${accentHeaderClasses[card.accent]}`}
+                    >
                       <div>
-                        <p className="text-[11px] uppercase text-slate-400">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-200/90">
                           {card.title}
                         </p>
-                        <p className="text-lg font-semibold text-white">
-                          {card.main}
-                        </p>
-                        <p className="text-xs text-slate-300">{card.sub}</p>
+                        <p className="text-lg font-semibold text-white">{card.main}</p>
+                        <p className="text-xs text-slate-100/90">{card.sub}</p>
                       </div>
-                      <div className="flex items-center gap-1 text-slate-400">
-                        <button
-                          type="button"
-                          aria-label={`Plus d'options pour ${card.title}`}
-                          className="rounded-md border border-transparent px-1 py-0.5 text-lg leading-none transition hover:border-slate-600 hover:bg-slate-800/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
-                          onMouseEnter={() => setActiveInfoCard(card.id)}
-                          onFocus={() => setActiveInfoCard(card.id)}
-                          onClick={() =>
-                            setActiveInfoCard((current) =>
-                              current === card.id ? null : card.id
-                            )
-                          }
-                        >
-                          ⋯
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase transition hover:border-sky-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
-                          onMouseEnter={() => setActiveInfoCard(card.id)}
-                          onFocus={() => setActiveInfoCard(card.id)}
-                          onClick={() =>
-                            setActiveInfoCard((current) =>
-                              current === card.id ? null : card.id
-                            )
-                          }
-                        >
-                          infos
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        aria-pressed={isExpanded}
+                        className="rounded-md border border-slate-700/70 bg-slate-900/60 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-sky-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500"
+                        onClick={() =>
+                          setActiveInfoCard((current) =>
+                            current === card.id ? null : card.id
+                          )
+                        }
+                      >
+                        {isExpanded ? 'Masquer' : 'Détails'}
+                      </button>
                     </div>
-                  </div>
-                  <div
-                    className={`absolute left-0 right-0 translate-y-1 opacity-0 transition-all duration-150 ${
-                      activeInfoCard === card.id
-                        ? 'pointer-events-auto translate-y-2 opacity-100'
-                        : 'pointer-events-none'
-                    }`}
-                  >
-                    <div className="mt-1 rounded-lg border border-slate-700/80 bg-slate-900/95 px-3 py-2 text-[12px] text-slate-200 shadow-xl">
+                    <div
+                      className={`space-y-1 border-t border-slate-800 px-4 py-3 text-[12px] transition ${
+                        isExpanded ? 'bg-slate-950/60 text-slate-200' : 'bg-slate-950/30 text-slate-400'
+                      }`}
+                    >
                       {card.extras.map((extra, index) => (
                         <p
                           key={`${card.id}-${index}`}
@@ -1057,8 +1059,8 @@ const Home: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1142,6 +1144,8 @@ const Home: React.FC = () => {
         <ReputationPanel
           reputation={gameState.reputation}
           attraction={gameState.attraction}
+          onReduceSaturation={handleQuickReduceSaturation}
+          onBoostSatisfaction={handleQuickBoostSatisfaction}
         />
       </div>
 

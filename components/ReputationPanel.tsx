@@ -5,6 +5,8 @@ import { ReputationSnapshot } from '@/pixi/ReputationSystem';
 type Props = {
   reputation: ReputationSnapshot;
   attraction: AttractionSnapshot;
+  onReduceSaturation?: () => void;
+  onBoostSatisfaction?: () => void;
 };
 
 const impactTone: Record<
@@ -19,6 +21,8 @@ const impactTone: Record<
 export const ReputationPanel: React.FC<Props> = ({
   reputation,
   attraction,
+  onReduceSaturation,
+  onBoostSatisfaction,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showFactors, setShowFactors] = useState(false);
@@ -63,11 +67,11 @@ export const ReputationPanel: React.FC<Props> = ({
 
       <div className="mt-3 flex items-center gap-3">
         <div
-          className="relative"
-          onMouseEnter={() => setShowFactors(true)}
-          onMouseLeave={() => setShowFactors(false)}
-        >
-          <div
+            className="relative"
+            onMouseEnter={() => setShowFactors(true)}
+            onMouseLeave={() => setShowFactors(false)}
+          >
+            <div
             className="flex h-24 w-24 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-center shadow-inner"
             style={{
               background: `conic-gradient(#22d3ee ${notorietyFill}deg, #1e293b ${notorietyFill}deg)`,
@@ -81,11 +85,11 @@ export const ReputationPanel: React.FC<Props> = ({
                 {attraction.notoriety.toFixed(1)}
               </span>
             </div>
-          </div>
+            </div>
 
-          {showFactors && (
-            <div className="absolute right-[110%] top-1/2 z-10 w-56 -translate-y-1/2 rounded-lg border border-slate-700/80 bg-slate-900/95 p-2 text-[12px] text-slate-200 shadow-xl">
-              <p className="mb-1 text-[11px] uppercase text-slate-400">
+            {showFactors && (
+              <div className="absolute right-[110%] top-1/2 z-10 w-56 -translate-y-1/2 rounded-lg border border-slate-700/80 bg-slate-900/95 p-2 text-[12px] text-slate-200 shadow-xl">
+                <p className="mb-1 text-[11px] uppercase text-slate-400">
                 Facteurs contributeurs
               </p>
               <ul className="space-y-1">
@@ -105,14 +109,30 @@ export const ReputationPanel: React.FC<Props> = ({
                 ))}
               </ul>
             </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="flex-1 space-y-2 text-[12px] text-slate-200">
-          <div className="rounded-lg border border-slate-700/70 bg-slate-800/60 p-2">
-            <p className="text-[11px] uppercase text-slate-400">Profil</p>
-            <p className="text-sm font-semibold text-white">
-              Flux projeté :{' '}
+          <div className="flex-1 space-y-1 text-[11px] text-slate-300">
+            <p>
+              Réputation locale ↑ ⇒{' '}
+              <span className="font-semibold text-sky-100">
+                {attraction.reputationContribution >= 0 ? '+' : ''}
+                {attraction.reputationContribution.toFixed(1)} entrées/min
+              </span>
+            </p>
+            <p>
+              Saturation actuelle ⇒{' '}
+              <span className="font-semibold text-amber-100">
+                −{attraction.saturationPenalty.toFixed(1)} entrées/min
+              </span>
+            </p>
+          </div>
+
+          <div className="flex-1 space-y-2 text-[12px] text-slate-200">
+            <div className="rounded-lg border border-slate-700/70 bg-slate-800/60 p-2">
+              <p className="text-[11px] uppercase text-slate-400">Profil</p>
+              <p className="text-sm font-semibold text-white">
+                Flux projeté :{' '}
               <span className="text-emerald-300">
                 {attraction.influxPerMinute.toFixed(1)} /min
               </span>
@@ -147,6 +167,24 @@ export const ReputationPanel: React.FC<Props> = ({
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+          <span className="font-semibold text-slate-100">Actions rapides :</span>
+          <button
+            type="button"
+            onClick={onReduceSaturation}
+            className="rounded-md border border-amber-500/60 bg-amber-900/50 px-2 py-1 font-semibold text-amber-50 transition hover:border-amber-400 hover:bg-amber-800/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+          >
+            Réduire la saturation
+          </button>
+          <button
+            type="button"
+            onClick={onBoostSatisfaction}
+            className="rounded-md border border-emerald-500/60 bg-emerald-900/50 px-2 py-1 font-semibold text-emerald-50 transition hover:border-emerald-400 hover:bg-emerald-800/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+          >
+            Booster la satisfaction
+          </button>
         </div>
       </div>
     </div>
