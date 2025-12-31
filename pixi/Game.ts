@@ -218,6 +218,7 @@ export class Game {
   private isGameOver = false;
   private gameOverReason: string | null = null;
   private readonly features = FEATURES;
+  private isDestroyed = false;
 
   constructor(
     container: HTMLDivElement,
@@ -267,14 +268,27 @@ export class Game {
   }
 
   private async init(container: HTMLDivElement) {
+    if (this.isDestroyed) return;
+
     await this.app.init({
       background: '#0f172a',
       resizeTo: container,
       antialias: true,
     });
+
+    if (this.isDestroyed || !container.isConnected) {
+      this.app.destroy(true, { children: true });
+      return;
+    }
+
     container.appendChild(this.app.canvas);
 
     await this.preloadAssets(this.assetRegistry.activePackIds);
+
+    if (this.isDestroyed) {
+      this.app.destroy(true, { children: true });
+      return;
+    }
 
     // ✅ Forcer le curseur en croix sur le canvas lui-même
     this.app.canvas.style.cursor = 'crosshair';
@@ -1891,10 +1905,13 @@ export class Game {
   }
 
   public destroy() {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+
     this.buildZoneOverlay?.destroy();
     this.districtOverlay?.destroy();
     this.clearInspectionOverlay();
-    this.worldView.destroy();
-    this.app.destroy(true, { children: true });
+    this.worldView?.destroy();
+    this.app?.destroy(true, { children: true });
   }
 }
