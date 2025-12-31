@@ -260,7 +260,10 @@ export class Game {
       onTick: this.onSimulationTick,
     });
     this.initWorkerSchedules();
-    this.readyPromise = this.init(container);
+    this.readyPromise = this.init(container).catch((error) => {
+      if (this.isDestroyed || !container.isConnected) return;
+      throw error;
+    });
   }
 
   public whenReady(): Promise<void> {
@@ -268,13 +271,20 @@ export class Game {
   }
 
   private async init(container: HTMLDivElement) {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || !container.isConnected) return;
 
-    await this.app.init({
-      background: '#0f172a',
-      resizeTo: container,
-      antialias: true,
-    });
+    try {
+      await this.app.init({
+        background: '#0f172a',
+        resizeTo: container,
+        antialias: true,
+      });
+    } catch (error) {
+      if (this.isDestroyed || !container.isConnected) {
+        return;
+      }
+      throw error;
+    }
 
     if (this.isDestroyed || !container.isConnected) {
       this.app.destroy(true, { children: true });
@@ -1912,6 +1922,8 @@ export class Game {
     this.districtOverlay?.destroy();
     this.clearInspectionOverlay();
     this.worldView?.destroy();
-    this.app?.destroy(true, { children: true });
+    if (this.app) {
+      this.app.destroy(true, { children: true });
+    }
   }
 }
