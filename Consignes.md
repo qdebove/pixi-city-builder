@@ -31,6 +31,7 @@ Ce document définit les règles **obligatoires** qu’un agent doit respecter p
 - **UI React** : panneaux, popups, intentions utilisateur.
 
 Interdits :
+
 - logique de jeu dans React,
 - dépendance moteur → React,
 - chemins d’assets hardcodés dans le rendu.
@@ -150,6 +151,7 @@ Interdits :
   - barre d’XP visible qui modifie stats.
 
 Effets visuels :
+
 - Lorsqu’un service implique une travailleuse :
   - afficher temporairement son image au-dessus du bâtiment (fade-out),
   - doit être poolé/caché (pas de création massive non contrôlée).
@@ -200,3 +202,20 @@ Effets visuels :
   - pourquoi,
   - quels invariants sont garantis.
 - Si une décision implique un compromis : expliciter le compromis et l’alternative.
+
+---
+
+## 13) Périmètre d’exécution — V0
+
+Pour la V0, un fichier `GAME_V0_CONTRACT.md` définit le **périmètre fonctionnel exact à implémenter**.
+
+Règles spécifiques :
+
+- Le contrat V0 **prime sur les documents de backlog** (TODO.md, TODO-UX.md, notes diverses).
+- Toute fonctionnalité hors périmètre V0 doit être :
+  - désactivée proprement (feature flags, modules non montés),
+  - conservée dans le codebase (non supprimée),
+  - réactivable ultérieurement.
+- La simplicité, la lisibilité et la stabilité priment sur l’exhaustivité fonctionnelle.
+
+Toute contradiction apparente entre la vision long terme et le contrat V0 doit être résolue **en faveur du contrat V0**.

@@ -1,4 +1,15 @@
 import {
+  Worker,
+  WorkerScheduleSlot,
+  WorkerShiftAssignment,
+} from '@/types/data-contract';
+import {
+  GameSaveState,
+  PersistedBuildingState,
+  PersistedWorkerSchedule,
+} from '@/types/save';
+import { GameNotification, SelectedPersonSnapshot } from '@/types/ui';
+import {
   Application,
   Assets,
   FederatedPointerEvent,
@@ -10,49 +21,37 @@ import { AssetDefinition, AssetRegistry } from '../types/data-contract';
 import {
   BuildingState,
   BuildingType,
-  PersonRole,
   calculateUpgradeCost,
   CELL_SIZE,
+  PersonRole,
 } from '../types/types';
+import { BASE_ASSET_REGISTRY } from './assets/registry';
+import { SpriteResolver } from './assets/SpriteResolver';
+import { AttractionSnapshot, AttractionSystem } from './AttractionSystem';
 import { Building } from './Building';
 import { BuildingManager } from './BuildingManager';
+import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
+import { ECONOMY_SETTINGS } from './data/economy-settings';
+import { WORKER_ROSTER } from './data/game-model';
+import { MAP_SETTINGS } from './data/map-settings';
+import { computeWorkerCost } from './data/recruitment';
+import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
+import { createDefaultSchedule } from './data/worker-schedules';
+import { DebtSnapshot, DebtSystem } from './DebtSystem';
+import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
+import { EconomySnapshot, EconomySystem } from './EconomySystem';
+import { ActiveEventSnapshot, EventSystem } from './EventSystem';
 import { FloatingText } from './FloatingText';
+import { IncomePulse } from './IncomePulse';
+import { NotificationCenter } from './NotificationCenter';
 import { PeopleManager } from './PeopleManager';
 import { ReputationSnapshot, ReputationSystem } from './ReputationSystem';
-import { AttractionSnapshot, AttractionSystem } from './AttractionSystem';
-import { WorldView } from './WorldView';
-import { SimulationClock, TickContext } from './SimulationClock';
-import { SpriteResolver } from './assets/SpriteResolver';
-import { BASE_ASSET_REGISTRY } from './assets/registry';
-import { IncomePulse } from './IncomePulse';
-import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
-import { GameNotification, SelectedPersonSnapshot } from '@/types/ui';
-import { EventSystem } from './EventSystem';
-import { ActiveEventSnapshot } from './EventSystem';
-import { TimeSnapshot, TimeSystem } from './TimeSystem';
-import { DebtSnapshot, DebtSystem } from './DebtSystem';
-import { DEBT_SETTINGS, TIME_SETTINGS } from './data/time-settings';
-import { ECONOMY_SETTINGS } from './data/economy-settings';
 import { SecuritySnapshot, SecuritySystem } from './SecuritySystem';
 import { ServiceFlash } from './ServiceFlash';
-import { WORKER_ROSTER } from './data/game-model';
-import {
-  Worker,
-  WorkerShiftAssignment,
-  WorkerScheduleSlot,
-} from '@/types/data-contract';
-import { computeWorkerCost } from './data/recruitment';
-import { EconomySnapshot, EconomySystem } from './EconomySystem';
-import { DistrictSnapshot, DistrictSystem } from './DistrictSystem';
-import { BuildZoneSnapshot, BuildZoneSystem } from './BuildZoneSystem';
-import { MAP_SETTINGS } from './data/map-settings';
-import {
-  GameSaveState,
-  PersistedBuildingState,
-  PersistedWorkerSchedule,
-} from '@/types/save';
-import { createDefaultSchedule } from './data/worker-schedules';
-import { NotificationCenter } from './NotificationCenter';
+import { SimulationClock, TickContext } from './SimulationClock';
+import { BuildingSkillSnapshot, SkillEngine } from './skills/SkillEngine';
+import { TimeSnapshot, TimeSystem } from './TimeSystem';
+import { WorldView } from './WorldView';
 
 const SAVE_VERSION = 1;
 
@@ -263,7 +262,7 @@ export class Game {
     this.districtSystem.generateZones();
     this.drawDistricts();
     this.drawBuildZone();
-    this.recomputeAttraction();
+    //this.recomputeAttraction();
 
     this.app.stage.on('pointerdown', this.onPointerDown.bind(this));
     this.app.stage.on('pointermove', this.onPointerMove.bind(this));
@@ -1725,7 +1724,7 @@ export class Game {
     this.peopleManager.hydrate(save.people);
 
     this.refreshAvailableWorkers();
-    this.recomputeAttraction();
+    //this.recomputeAttraction();
     this.recomputeGuardPresence();
     this.selectedBuilding = null;
     this.selectedPerson = null;

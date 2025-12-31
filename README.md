@@ -279,6 +279,25 @@ Les visiteurs :
 
 ---
 
+## 1️⃣2️⃣ Exception V0 — Règle de dette et Game Over
+
+Dans le cadre de la **V0 (vertical slice jouable)**, une règle exceptionnelle est appliquée :
+
+- Une **dette mensuelle fixe** est prélevée automatiquement en fin de mois.
+- Le joueur peut **rembourser manuellement** tout ou partie de la dette avant cette échéance.
+- **Si, lors du prélèvement automatique de fin de mois, les fonds sont insuffisants : la partie se termine immédiatement (Game Over brutal).**
+
+Cette règle constitue une **exception volontaire** à la philosophie long terme du jeu (qui vise des échecs progressifs et récupérables).  
+Elle est **limitée strictement à la V0** afin de :
+
+- simplifier la simulation,
+- clarifier les boucles économiques,
+- disposer d’une condition de fin nette et testable.
+
+Cette règle pourra être remplacée ou assouplie dans des versions ultérieures.
+
+---
+
 ## 🔧 Spécifications techniques & rigueur
 
 - Next.js + Pixi.js + TypeScript strict
