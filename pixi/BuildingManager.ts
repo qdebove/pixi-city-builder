@@ -125,8 +125,11 @@ export class BuildingManager {
       const heightPx = type.height * CELL_SIZE;
       ghost
         .rect(-widthPx / 2, -heightPx / 2, widthPx, heightPx)
-        .fill({ color: type.color, alpha: 0.35 });
-      ghost.alpha = 0.9;
+        .fill({ color: type.color, alpha: 0.28 })
+        .stroke({ width: 3, color: 0xffffff, alpha: 0.4 });
+      ghost.alpha = 0.95;
+      ghost.zIndex = 1500;
+      ghost.eventMode = 'none';
       this.ghost = ghost;
       this.world.addChild(this.ghost);
       // ✅ ne touche plus au curseur (toujours croix)

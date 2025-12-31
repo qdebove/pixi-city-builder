@@ -76,22 +76,22 @@
   * Pas d’anticipation des risques
   * Event bus, HUD notifications
   * Le joueur agit avant les crises
-* **[ID-009] Tableau de bord finances**
+* [x] **[ID-009] Tableau de bord finances**
   * Revenus/dépenses par catégorie, projection fin de mois
   * Difficulté à équilibrer comptes
   * Finances, UI dashboard
   * Le joueur identifie les leviers financiers
-* **[ID-010] Mode inspection carte**
+* [x] **[ID-010] Mode inspection carte**
   * Outil curseur pour survoler routes/bâtiments et voir accessibilité/efficacité
   * Accessibilité routière obscure
   * Chemins, bâtiment, UI overlay
   * Le joueur voit l’impact du réseau
-* **[ID-011] Tutoriel objectifs courts**
+* [x] **[ID-011] Tutoriel objectifs courts**
   * 4–5 quêtes guidant HUD, construction, affectation, paiement dette
   * Onboarding inexistant
   * UI objectifs, triggers simulation
   * Le joueur comprend la boucle de base
-* **[ID-012] Feedbacks visuels/sonores placement**
+* [x] **[ID-012] Feedbacks visuels/sonores placement**
   * Fantôme placement, couleurs valid/invalid, sons de confirmation/erreur
   * Manque de clarté lors du build
   * Construction, input, assets audio
